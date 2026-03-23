@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
-// ✅ GET - за verification от Zadarma (zd_echo)
+export const dynamic = 'force-dynamic';
+
+// GET (verification)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const echo = searchParams.get('zd_echo');
@@ -13,7 +15,7 @@ export async function GET(req: NextRequest) {
   return new Response('OK');
 }
 
-// ✅ POST - реалните webhook-и от Zadarma
+// POST (webhook)
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
@@ -42,17 +44,17 @@ export async function POST(req: NextRequest) {
       console.error('ZADARMA WEBHOOK INSERT ERROR:', error);
 
       return new Response(
-        JSON.stringify({ success: false, error: 'Failed to store webhook' }),
+        JSON.stringify({ success: false }),
         { status: 500 }
       );
     }
 
-    return new Response(JSON.stringify({ success: true }), { status: 200 });
+    return new Response(JSON.stringify({ success: true }));
   } catch (err) {
-    console.error('ZADARMA WEBHOOK ERROR:', err);
+    console.error('ZADARMA ERROR:', err);
 
     return new Response(
-      JSON.stringify({ success: false, error: 'Invalid payload' }),
+      JSON.stringify({ success: false }),
       { status: 400 }
     );
   }
