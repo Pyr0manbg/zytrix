@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const echo = searchParams.get('zd_echo');
+
+  if (echo) {
+    return new Response(echo);
+  }
+
+  return new Response('OK');
+}
+
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
