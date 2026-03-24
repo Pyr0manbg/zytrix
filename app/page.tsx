@@ -33,17 +33,15 @@ import AddClientModal from './components/AddClientModal';
 import CallConfirmModal from './components/CallConfirmModal';
 import NewCallModal from './components/NewCallModal';
 
-const initialTasks: Task[] = [
-  { id: 1, title: 'Follow-up with Ivan Petrov', due: 'Today, 10:30', done: false },
-  { id: 2, title: 'Send offers to Maria Ivanova', due: 'Today, 12:00', done: false },
-  { id: 3, title: 'Viewing with Georgi', due: 'Today, 16:00', done: true },
-];
+const initialTasks: Task[] = [];
 
-const recentCalls = [
-  { id: 1, client: 'Ivan Petrov', duration: '03:12', status: 'Processed', insight: 'Strong buyer intent' },
-  { id: 2, client: 'Maria Ivanova', duration: '01:58', status: 'Processed', insight: 'Needs follow-up' },
-  { id: 3, client: 'Unknown lead', duration: '00:49', status: 'Skipped', insight: 'Too short for analysis' },
-];
+const recentCalls: Array<{
+  id: number | string;
+  clientName?: string;
+  duration?: string;
+  status?: string;
+  insight?: string;
+}> = [];
 
 
 
