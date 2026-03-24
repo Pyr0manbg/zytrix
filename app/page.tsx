@@ -7,8 +7,7 @@ import { useRouter } from 'next/navigation';
 
 import DesktopSidebar from './components/DesktopSidebar';
 import HeroSection from './components/HeroSection';
-import { getStoredLanguage, type AppLanguage } from './language';
-import StatsGrid from './components/StatsGrid';
+import { getStoredLanguage } from './language';
 import MobileBottomNav from './components/MobileBottomNav';
 import {
   TodayTab,
@@ -20,20 +19,17 @@ import {
 } from './components/tabs';
 import type { TabId } from './types';
 
-
 import type { CalendarEvent, CallItem, Client, Task } from './types';
 import {
   formatDateKey,
   getCalendarDays,
+  parseDateKey,
   toDateKeyFromString,
 } from './utils';
 
-import { SectionCard } from './components/UI';
 import AddClientModal from './components/AddClientModal';
 import CallConfirmModal from './components/CallConfirmModal';
 import NewCallModal from './components/NewCallModal';
-
-const initialTasks: Task[] = [];
 
 const recentCalls: Array<{
   id: number | string;
@@ -42,8 +38,6 @@ const recentCalls: Array<{
   status?: string;
   insight?: string;
 }> = [];
-
-
 
 function ZytrixLogo({ className = 'h-10 w-10' }: { className?: string }) {
   return (
@@ -66,13 +60,14 @@ export default function Page() {
   const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('today');
   const [lang, setLang] = useState<'bg' | 'en'>(() => {
-      if (typeof window === 'undefined') return 'bg';
+    if (typeof window === 'undefined') return 'bg';
 
-        const savedLang = window.localStorage.getItem('zytrix-lang');
-        return savedLang === 'en' ? 'en' : 'bg';
-      });
+    const savedLang = window.localStorage.getItem('zytrix-lang');
+    return savedLang === 'en' ? 'en' : 'bg';
+  });
+
   const t = createTranslator(lang);
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+
   const [clients, setClients] = useState<Client[]>([]);
   const [clientsLoading, setClientsLoading] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
@@ -92,16 +87,20 @@ export default function Page() {
   const [showNewCallModal, setShowNewCallModal] = useState(false);
   const [manualCallPhone, setManualCallPhone] = useState('');
   const [newCallSubmitting, setNewCallSubmitting] = useState(false);
- const [assistantAnswer, setAssistantAnswer] = useState('');
+  const [assistantAnswer, setAssistantAnswer] = useState('');
+
   const today = new Date();
-  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [calendarMonth, setCalendarMonth] = useState<Date>(
+    new Date(today.getFullYear(), today.getMonth(), 1)
+  );
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [eventTitle, setEventTitle] = useState('');
   const [eventTime, setEventTime] = useState('10:00');
   const [eventType, setEventType] = useState<CalendarEvent['type']>('Viewing');
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
 
-  const selectedClient = clients.find((c) => c.id === selectedClientId) || clients[0] || null;
+  const selectedClient =
+    clients.find((c) => c.id === selectedClientId) || clients[0] || null;
 
   const filteredClients = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -115,12 +114,36 @@ export default function Page() {
     );
   }, [clients, query]);
 
-  const completedTasks = tasks.filter((t) => t.done).length;
-  const pendingTasks = tasks.filter((t) => !t.done).length;
+  const calendarDays = useMemo(
+    () => getCalendarDays(calendarMonth),
+    [calendarMonth]
+  );
 
-  const calendarDays = useMemo(() => getCalendarDays(calendarMonth), [calendarMonth]);
   const selectedDateKey = formatDateKey(selectedDate);
 
+  const tasks = useMemo<Task[]>(() => {
+    const now = new Date();
+
+    return [...calendarEvents]
+      .map((event, index) => {
+        const eventDate = parseDateKey(event.dateKey);
+        const [hours, minutes] = event.time.split(':').map(Number);
+
+        eventDate.setHours(hours || 0, minutes || 0, 0, 0);
+
+        return {
+          id: typeof event.id === 'number' ? event.id : index,
+          title: event.title,
+          due: `${event.dateKey} ${event.time}`,
+          done: eventDate < now,
+        };
+      })
+      .sort((a, b) => a.due.localeCompare(b.due))
+      .slice(0, 5);
+  }, [calendarEvents]);
+
+  const completedTasks = tasks.filter((t) => t.done).length;
+  const pendingTasks = tasks.filter((t) => !t.done).length;
 
   const selectedDateEvents = useMemo(
     () =>
@@ -141,36 +164,36 @@ export default function Page() {
   }, [calendarEvents]);
 
   useEffect(() => {
-  let isMounted = true;
+    let isMounted = true;
 
-  async function checkAuth() {
-    const { data, error } = await supabase.auth.getSession();
+    async function checkAuth() {
+      const { data, error } = await supabase.auth.getSession();
 
-    if (!isMounted) return;
+      if (!isMounted) return;
 
-    if (error || !data.session) {
-      router.replace('/login');
-      return;
+      if (error || !data.session) {
+        router.replace('/login');
+        return;
+      }
+
+      setAuthChecked(true);
     }
 
-    setAuthChecked(true);
-  }
+    checkAuth();
 
-  checkAuth();
-
-  return () => {
-    isMounted = false;
-  };
-}, [router]);
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
 
   useEffect(() => {
     loadClients();
   }, []);
 
   useEffect(() => {
-  const storedLanguage = getStoredLanguage();
-  setLang(storedLanguage);
-}, []);
+    const storedLanguage = getStoredLanguage();
+    setLang(storedLanguage);
+  }, []);
 
   useEffect(() => {
     if (selectedClientId) {
@@ -241,7 +264,10 @@ export default function Page() {
   async function loadClients() {
     setClientsLoading(true);
 
-    const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error loading clients:', error);
@@ -292,7 +318,9 @@ export default function Page() {
     }));
 
     setClients((prev) =>
-      prev.map((client) => (client.id === clientId ? { ...client, calls: mappedCalls } : client))
+      prev.map((client) =>
+        client.id === clientId ? { ...client, calls: mappedCalls } : client
+      )
     );
   }
 
@@ -329,7 +357,11 @@ export default function Page() {
       status: newClientStatus,
     };
 
-    const { data, error } = await supabase.from('clients').insert(payload).select().single();
+    const { data, error } = await supabase
+      .from('clients')
+      .insert(payload)
+      .select()
+      .single();
 
     if (error) {
       console.error('FULL ADD CLIENT ERROR:', JSON.stringify(error, null, 2));
@@ -360,12 +392,6 @@ export default function Page() {
     setShowAddClientModal(false);
     setActiveTab('clients');
   }
-
-function toggleTask(taskId: number) {
-  setTasks((prev: Task[]) =>
-    prev.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t))
-  );
-}
 
   async function askAssistant() {
     if (!assistantInput.trim()) return;
@@ -417,43 +443,48 @@ function toggleTask(taskId: number) {
   }
 
   function previousMonth() {
-    setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1));
+    setCalendarMonth(
+      new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1)
+    );
   }
 
   function nextMonth() {
-    setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
+    setCalendarMonth(
+      new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1)
+    );
   }
 
   if (!authChecked) {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-[#08111F] text-white">
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-slate-300 backdrop-blur">
-        Loading Zytrix...
-      </div>
-    </main>
-  );
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#08111F] text-white">
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-slate-300 backdrop-blur">
+          Loading Zytrix...
+        </div>
+      </main>
+    );
   }
+
   return (
     <main className="flex min-h-screen bg-[#08111F] text-slate-100">
       <DesktopSidebar
-      activeKey={activeTab}
-       onChange={(key) => setActiveTab(key)}
-       lang={lang}
-       bottomSlot={
-      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-      <p className="hidden text-xs text-slate-400 group-hover:block">
-        Zytrix v0.1
-      </p>
-    </div>
-  }
-/>
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key)}
+        lang={lang}
+        bottomSlot={
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="hidden text-xs text-slate-400 group-hover:block">
+              Zytrix v0.1
+            </p>
+          </div>
+        }
+      />
 
       <div className="flex-1">
         <div className="mx-auto max-w-7xl px-4 pb-28 pt-4 md:px-6 md:pb-10 md:pt-8">
-       <HeroSection
-          onNewCall={() => setShowNewCallModal(true)}
-          onOpenCalendar={() => setActiveTab('calendar')}
-          logo={<ZytrixLogo className="h-6 w-6" />}
+          <HeroSection
+            onNewCall={() => setShowNewCallModal(true)}
+            onOpenCalendar={() => setActiveTab('calendar')}
+            logo={<ZytrixLogo className="h-6 w-6" />}
           />
 
           <div className="mb-4 flex justify-end">
@@ -465,35 +496,33 @@ function toggleTask(taskId: number) {
             </button>
           </div>
 
+          {activeTab === 'today' && (
+            <TodayTab
+              activeClientsCount={clients.filter((c) => c.status === 'Active').length}
+              processedCallsCount={recentCalls.filter((c) => c.status === 'Processed').length}
+              pendingTasks={pendingTasks}
+              tasks={tasks}
+              recentCalls={recentCalls}
+            />
+          )}
 
-
-        {activeTab === 'today' && (
-          <TodayTab
-          activeClientsCount={clients.filter((c) => c.status === 'Active').length}
-          processedCallsCount={recentCalls.filter((c) => c.status === 'Processed').length}
-          pendingTasks={pendingTasks}
-            tasks={tasks}
-          recentCalls={recentCalls}
-        />
-        )}
-
-        {activeTab === 'analytics' && <AnalyticsTab />}
+          {activeTab === 'analytics' && <AnalyticsTab />}
 
           {activeTab === 'calls' && <CallsTab />}
 
           {activeTab === 'clients' && (
-          <ClientsTab
-          clients={clients}
-          filteredClients={filteredClients}
-          clientsLoading={clientsLoading}
-          selectedClient={selectedClient}
-          selectedClientId={selectedClientId}
-          setSelectedClientId={setSelectedClientId}
-          setShowAddClientModal={setShowAddClientModal}
-          setShowCallConfirmModal={setShowCallConfirmModal}
-          query={query}
-          setQuery={setQuery}
-          />
+            <ClientsTab
+              clients={clients}
+              filteredClients={filteredClients}
+              clientsLoading={clientsLoading}
+              selectedClient={selectedClient}
+              selectedClientId={selectedClientId}
+              setSelectedClientId={setSelectedClientId}
+              setShowAddClientModal={setShowAddClientModal}
+              setShowCallConfirmModal={setShowCallConfirmModal}
+              query={query}
+              setQuery={setQuery}
+            />
           )}
 
           {activeTab === 'assistant' && (
@@ -511,96 +540,97 @@ function toggleTask(taskId: number) {
             />
           )}
 
-        {activeTab === 'calendar' && (
-          <CalendarTab
-            today={today}
-            calendarMonth={calendarMonth}
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
-            setCalendarMonth={setCalendarMonth}
-            calendarDays={calendarDays}
-            calendarEvents={calendarEvents}
-            eventTitle={eventTitle}
-            setEventTitle={setEventTitle}
-            eventTime={eventTime}
-            setEventTime={setEventTime}
-            eventType={eventType}
-            setEventType={setEventType}
-            addCalendarEvent={addCalendarEvent}
-            deleteEvent={deleteEvent}
-            previousMonth={previousMonth}
-            nextMonth={nextMonth}
-            selectedDateKey={selectedDateKey}
-            selectedDateEvents={selectedDateEvents}
-            upcomingEvents={upcomingEvents}
-          />
-        )}
-      </div>
-
-      <AddClientModal
-        open={showAddClientModal}
-        newClientName={newClientName}
-        newClientPhone={newClientPhone}
-        newClientBudget={newClientBudget}
-        newClientInterest={newClientInterest}
-        newClientNextStep={newClientNextStep}
-        newClientStatus={newClientStatus}
-        setNewClientName={setNewClientName}
-        setNewClientPhone={setNewClientPhone}
-        setNewClientBudget={setNewClientBudget}
-        setNewClientInterest={setNewClientInterest}
-        setNewClientNextStep={setNewClientNextStep}
-        setNewClientStatus={setNewClientStatus}
-        onClose={() => setShowAddClientModal(false)}
-        onSave={addClient}
-      />
-
-    <CallConfirmModal
-  open={showCallConfirmModal}
-  selectedClient={selectedClient}
-  onClose={() => setShowCallConfirmModal(false)}
-  onConfirm={async () => {
-    if (!selectedClient) return;
-
-    const response = await fetch('/api/voip', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        phoneNumber: selectedClient.phone,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok || !result.success) {
-      alert(result.error || 'Failed to start call.');
-      return;
-    }
-
-    await logCall(selectedClient.id);
-    await loadClientCalls(selectedClient.id);
-    setShowCallConfirmModal(false);
-  }}
-/>
-
-      <NewCallModal
-        open={showNewCallModal}
-        phoneNumber={manualCallPhone}
-        setPhoneNumber={setManualCallPhone}
-        isSubmitting={newCallSubmitting}
-        onClose={() => {
-          if (newCallSubmitting) return;
-          setShowNewCallModal(false);
-        }}
-        onConfirm={startManualVoipCall}
-      />
-        <MobileBottomNav
-        activeTab={activeTab}
-        onChange={setActiveTab}
-        />
+          {activeTab === 'calendar' && (
+            <CalendarTab
+              today={today}
+              calendarMonth={calendarMonth}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              setCalendarMonth={setCalendarMonth}
+              calendarDays={calendarDays}
+              calendarEvents={calendarEvents}
+              eventTitle={eventTitle}
+              setEventTitle={setEventTitle}
+              eventTime={eventTime}
+              setEventTime={setEventTime}
+              eventType={eventType}
+              setEventType={setEventType}
+              addCalendarEvent={addCalendarEvent}
+              deleteEvent={deleteEvent}
+              previousMonth={previousMonth}
+              nextMonth={nextMonth}
+              selectedDateKey={selectedDateKey}
+              selectedDateEvents={selectedDateEvents}
+              upcomingEvents={upcomingEvents}
+            />
+          )}
         </div>
+
+        <AddClientModal
+          open={showAddClientModal}
+          newClientName={newClientName}
+          newClientPhone={newClientPhone}
+          newClientBudget={newClientBudget}
+          newClientInterest={newClientInterest}
+          newClientNextStep={newClientNextStep}
+          newClientStatus={newClientStatus}
+          setNewClientName={setNewClientName}
+          setNewClientPhone={setNewClientPhone}
+          setNewClientBudget={setNewClientBudget}
+          setNewClientInterest={setNewClientInterest}
+          setNewClientNextStep={setNewClientNextStep}
+          setNewClientStatus={setNewClientStatus}
+          onClose={() => setShowAddClientModal(false)}
+          onSave={addClient}
+        />
+
+        <CallConfirmModal
+          open={showCallConfirmModal}
+          selectedClient={selectedClient}
+          onClose={() => setShowCallConfirmModal(false)}
+          onConfirm={async () => {
+            if (!selectedClient) return;
+
+            const response = await fetch('/api/voip', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                phoneNumber: selectedClient.phone,
+              }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+              alert(result.error || 'Failed to start call.');
+              return;
+            }
+
+            await logCall(selectedClient.id);
+            await loadClientCalls(selectedClient.id);
+            setShowCallConfirmModal(false);
+          }}
+        />
+
+        <NewCallModal
+          open={showNewCallModal}
+          phoneNumber={manualCallPhone}
+          setPhoneNumber={setManualCallPhone}
+          isSubmitting={newCallSubmitting}
+          onClose={() => {
+            if (newCallSubmitting) return;
+            setShowNewCallModal(false);
+          }}
+          onConfirm={startManualVoipCall}
+        />
+
+        <MobileBottomNav
+          activeTab={activeTab}
+          onChange={setActiveTab}
+        />
+      </div>
     </main>
   );
 }
