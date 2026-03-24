@@ -4,7 +4,6 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
-// Helper for Zadarma API signature
 function buildZadarmaAuth(method: string, params: Record<string, string>) {
   const key = process.env.ZADARMA_KEY!;
   const secret = process.env.ZADARMA_SECRET!;
@@ -14,9 +13,11 @@ function buildZadarmaAuth(method: string, params: Record<string, string>) {
   );
 
   const paramsStr = new URLSearchParams(sortedEntries).toString();
+  const md5 = crypto.createHash('md5').update(paramsStr).digest('hex');
+
   const signature = crypto
     .createHmac('sha1', secret)
-    .update(method + paramsStr + crypto.createHash('md5').update(paramsStr).digest('hex'))
+    .update(method + paramsStr + md5)
     .digest('base64');
 
   return {
@@ -40,9 +41,10 @@ export async function GET(req: NextRequest) {
 // POST (webhook)
 export async function POST(req: NextRequest) {
   try {
+    // Zadarma sends form-urlencoded, not JSON
     const bodyText = await req.text();
-    const params = new URLSearchParams(bodyText);
-    const payload = Object.fromEntries(params.entries());
+    const formParams = new URLSearchParams(bodyText);
+    const payload = Object.fromEntries(formParams.entries());
 
     console.log('ZADARMA PAYLOAD:', payload);
 
@@ -58,7 +60,8 @@ export async function POST(req: NextRequest) {
       payload.status ||
       'unknown';
 
-    const { error } = await supabaseAdmin.from('call_events').insert({
+    // 1) Save raw event
+    const { error: callEventsError } = await supabaseAdmin.from('call_events').insert({
       provider: 'zadarma',
       event_type: String(eventType),
       external_call_id: externalCallId,
@@ -66,8 +69,8 @@ export async function POST(req: NextRequest) {
       processed: false,
     });
 
-    if (error) {
-      console.error('ZADARMA WEBHOOK INSERT ERROR:', error);
+    if (callEventsError) {
+      console.error('ZADARMA WEBHOOK INSERT ERROR:', callEventsError);
 
       return new Response(JSON.stringify({ success: false }), {
         status: 500,
@@ -75,23 +78,21 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 2) Build/update main call row
     if (externalCallId) {
       const updateData: any = {
         external_call_id: externalCallId,
         call_status: eventType,
       };
 
-      if (eventType?.includes('OUT')) updateData.direction = 'outbound';
-      if (eventType?.includes('IN')) updateData.direction = 'inbound';
+      if (eventType.includes('OUT')) updateData.direction = 'outbound';
+      if (eventType.includes('IN')) updateData.direction = 'inbound';
 
       if (payload.from) updateData.from_number = payload.from;
       if (payload.to) updateData.to_number = payload.to;
 
-      if (payload.duration) {
-        const parsedDuration = Number(payload.duration);
-        if (!Number.isNaN(parsedDuration)) {
-          updateData.duration_seconds = parsedDuration;
-        }
+      if (payload.duration && !Number.isNaN(Number(payload.duration))) {
+        updateData.duration_seconds = Number(payload.duration);
       }
 
       if (eventType === 'NOTIFY_OUT_START' || eventType === 'NOTIFY_START') {
@@ -102,12 +103,17 @@ export async function POST(req: NextRequest) {
         updateData.ended_at = new Date().toISOString();
       }
 
-      if (eventType === 'NOTIFY_RECORD' && payload.call_id_with_rec) {
+      // 3) Try to fetch recording link when recording event arrives
+      if (eventType === 'NOTIFY_RECORD' && payload.pbx_call_id) {
+        const pbxCallId = payload.pbx_call_id;
+
         console.log('➡️ RECORD EVENT TRIGGERED');
+        console.log('ZADARMA KEY:', process.env.ZADARMA_KEY);
+        console.log('ZADARMA SECRET EXISTS:', !!process.env.ZADARMA_SECRET);
 
         const method = '/v1/pbx/record/request/';
         const requestParams = {
-          call_id_with_rec: payload.call_id_with_rec,
+          pbx_call_id: pbxCallId,
         };
 
         const { authorizationHeader, paramsStr } = buildZadarmaAuth(
@@ -116,6 +122,7 @@ export async function POST(req: NextRequest) {
         );
 
         console.log('➡️ REQUESTING RECORD LINK:', paramsStr);
+        console.log('➡️ AUTH HEADER PREFIX:', authorizationHeader.split(':')[0]);
 
         const response = await fetch(
           `https://api.zadarma.com${method}?${paramsStr}`,
@@ -136,26 +143,37 @@ export async function POST(req: NextRequest) {
         try {
           data = JSON.parse(rawText);
         } catch (e) {
-          console.error('JSON PARSE ERROR:', e);
+          console.error('RECORD JSON PARSE ERROR:', e);
         }
 
         console.log('RECORD RESPONSE FULL:', JSON.stringify(data));
 
-        // Zadarma often nests payload data
-        if (data?.link) {
-          updateData.recording_url = data.link;
-        } else if (data?.data?.link) {
-          updateData.recording_url = data.data.link;
-        } else if (data?.record_link) {
-          updateData.recording_url = data.record_link;
-        } else if (data?.data?.record_link) {
-          updateData.recording_url = data.data.record_link;
+        const recordingUrl =
+          data?.link ||
+          data?.data?.link ||
+          data?.record_link ||
+          data?.data?.record_link ||
+          data?.links?.[0] ||
+          data?.data?.links?.[0] ||
+          null;
+
+        if (recordingUrl) {
+          updateData.recording_url = recordingUrl;
         }
       }
 
-      await supabaseAdmin.from('calls').upsert(updateData, {
+      const { error: callsError } = await supabaseAdmin.from('calls').upsert(updateData, {
         onConflict: 'external_call_id',
       });
+
+      if (callsError) {
+        console.error('CALLS UPSERT ERROR:', callsError);
+
+        return new Response(JSON.stringify({ success: false }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     return new Response(JSON.stringify({ success: true }), {
