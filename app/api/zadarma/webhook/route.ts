@@ -185,12 +185,13 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const { error: callsError } = await supabaseAdmin.from('calls').upsert(
-        updateData,
-        {
+            const { data: upsertedCall, error: callsError } = await supabaseAdmin
+        .from('calls')
+        .upsert(updateData, {
           onConflict: 'external_call_id',
-        }
-      );
+        })
+        .select('id, external_call_id, recording_url')
+        .single();
 
       if (callsError) {
         console.error('CALLS UPSERT ERROR:', callsError);
@@ -199,6 +200,23 @@ export async function POST(req: NextRequest) {
           status: 500,
           headers: { 'Content-Type': 'application/json' },
         });
+      }
+
+      if (upsertedCall?.recording_url) {
+        const { error: queueError } = await supabaseAdmin
+          .from('call_processing_queue')
+          .insert({
+            call_id: upsertedCall.id,
+            external_call_id: upsertedCall.external_call_id,
+            recording_url: upsertedCall.recording_url,
+            status: 'pending',
+          });
+
+        if (queueError) {
+          console.error('QUEUE INSERT ERROR:', queueError);
+        } else {
+          console.log('✅ QUEUE ITEM CREATED FOR CALL:', upsertedCall.id);
+        }
       }
     }
 
