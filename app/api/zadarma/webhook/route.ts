@@ -44,6 +44,20 @@ export async function POST(req: NextRequest) {
       processed: false,
     });
 
+    // UPSERT INTO calls
+    if (externalCallId) {
+      await supabaseAdmin.from('calls').upsert(
+        {
+          external_call_id: externalCallId,
+          status: eventType,
+          raw_payload: payload,
+        },
+        {
+          onConflict: 'external_call_id',
+        }
+      );
+    }
+
     if (error) {
       console.error('ZADARMA WEBHOOK INSERT ERROR:', error);
 
