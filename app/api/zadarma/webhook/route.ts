@@ -18,18 +18,22 @@ export async function GET(req: NextRequest) {
 // POST (webhook)
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json();
+    const bodyText = await req.text();
+    const params = new URLSearchParams(bodyText);
+    const payload = Object.fromEntries(params.entries());
+
+    console.log('ZADARMA PAYLOAD:', payload);
 
     const externalCallId =
-      payload?.call_id?.toString() ||
-      payload?.pbx_call_id?.toString() ||
-      payload?.id?.toString() ||
+      payload.call_id?.toString() ||
+      payload.pbx_call_id?.toString() ||
+      payload.id?.toString() ||
       null;
 
     const eventType =
-      payload?.event ||
-      payload?.event_type ||
-      payload?.status ||
+      payload.event ||
+      payload.event_type ||
+      payload.status ||
       'unknown';
 
     const { error } = await supabaseAdmin.from('call_events').insert({
@@ -43,19 +47,22 @@ export async function POST(req: NextRequest) {
     if (error) {
       console.error('ZADARMA WEBHOOK INSERT ERROR:', error);
 
-      return new Response(
-        JSON.stringify({ success: false }),
-        { status: 500 }
-      );
+      return new Response(JSON.stringify({ success: false }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    return new Response(JSON.stringify({ success: true }));
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
   } catch (err) {
     console.error('ZADARMA ERROR:', err);
 
-    return new Response(
-      JSON.stringify({ success: false }),
-      { status: 400 }
-    );
+    return new Response(JSON.stringify({ success: false }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
