@@ -104,8 +104,14 @@ export async function POST(req: NextRequest) {
 
         console.log('RECORD RESPONSE:', data);
 
+        console.log('RECORD RESPONSE FULL:', JSON.stringify(data));
+
         if (data?.link) {
           updateData.recording_url = data.link;
+        } else if (data?.data?.link) {
+          updateData.recording_url = data.data.link;
+        } else if (data?.record_link) {
+          updateData.recording_url = data.record_link;
         }
       }
 
