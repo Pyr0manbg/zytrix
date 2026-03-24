@@ -523,9 +523,25 @@ async function addCalendarEvent() {
   }
 }
 
-  function deleteEvent(id: number) {
+async function deleteEvent(id: number) {
+  try {
+    const { error } = await supabase
+      .from('calendar_events')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('DELETE EVENT ERROR:', error);
+      alert('Failed to delete event');
+      return;
+    }
+
     setCalendarEvents((prev) => prev.filter((event) => event.id !== id));
+  } catch (err) {
+    console.error('DELETE EVENT ERROR:', err);
+    alert('Unexpected error while deleting event');
   }
+}
 
   function previousMonth() {
     setCalendarMonth(
