@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 
 import DesktopSidebar from './components/DesktopSidebar';
 import HeroSection from './components/HeroSection';
-import { getStoredLanguage, setStoredLanguage, type AppLanguage } from './language';
+import { getStoredLanguage, type AppLanguage } from './language';
 import StatsGrid from './components/StatsGrid';
 import MobileBottomNav from './components/MobileBottomNav';
 import {
@@ -87,37 +87,19 @@ export default function Page() {
   const [query, setQuery] = useState('');
   const [assistantClients, setAssistantClients] = useState<any[]>([]);
   const [assistantActions, setAssistantActions] = useState<string[]>([]);
-  const [assistantInput, setAssistantInput] = useState('What did Ivan say yesterday?');
+  const [assistantInput, setAssistantInput] = useState('');
   const [showCallConfirmModal, setShowCallConfirmModal] = useState(false);
   const [showNewCallModal, setShowNewCallModal] = useState(false);
   const [manualCallPhone, setManualCallPhone] = useState('');
   const [newCallSubmitting, setNewCallSubmitting] = useState(false);
-  const [assistantAnswer, setAssistantAnswer] = useState(
-    'Ivan is looking for a 2-room apartment in Burgas with a budget around €120,000. He prefers good access, low maintenance fees, and is open to viewings this week. Suggested next step: send 3 matching listings today.'
-  );
-
+ const [assistantAnswer, setAssistantAnswer] = useState('');
   const today = new Date();
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [eventTitle, setEventTitle] = useState('');
   const [eventTime, setEventTime] = useState('10:00');
   const [eventType, setEventType] = useState<CalendarEvent['type']>('Viewing');
-  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([
-    {
-      id: 1,
-      dateKey: formatDateKey(today),
-      title: 'Call Ivan Petrov',
-      time: '11:00',
-      type: 'Client call',
-    },
-    {
-      id: 2,
-      dateKey: formatDateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)),
-      title: 'Viewing with Maria',
-      time: '15:00',
-      type: 'Viewing',
-    },
-  ]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
 
   const selectedClient = clients.find((c) => c.id === selectedClientId) || clients[0] || null;
 
@@ -139,10 +121,6 @@ export default function Page() {
   const calendarDays = useMemo(() => getCalendarDays(calendarMonth), [calendarMonth]);
   const selectedDateKey = formatDateKey(selectedDate);
 
-  const handleLanguageChange = (nextLanguage: AppLanguage) => {
-  setLang(nextLanguage);
-  setStoredLanguage(nextLanguage);
-};
 
   const selectedDateEvents = useMemo(
     () =>
@@ -383,9 +361,11 @@ export default function Page() {
     setActiveTab('clients');
   }
 
-  function toggleTask(taskId: number) {
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t)));
-  }
+function toggleTask(taskId: number) {
+  setTasks((prev: Task[]) =>
+    prev.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t))
+  );
+}
 
   async function askAssistant() {
     if (!assistantInput.trim()) return;
