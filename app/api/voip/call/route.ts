@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-function normalizePhoneNumber(phone) {
+function normalizePhoneNumber(phone: string) {
   return phone.replace(/[^\d+]/g, '').trim();
 }
 
-function isValidPhoneNumber(phone) {
+function isValidPhoneNumber(phone: string) {
   const normalized = normalizePhoneNumber(phone);
   return normalized.length >= 8;
 }
 
-function buildZadarmaAuth(methodPath, params, key, secret) {
+function buildZadarmaAuth(
+  methodPath: string,
+  params: Record<string, string>,
+  key: string,
+  secret: string
+) {
   const sortedParams = Object.keys(params)
     .sort()
-    .reduce((acc, k) => {
+    .reduce<Record<string, string>>((acc, k) => {
       acc[k] = params[k];
       return acc;
     }, {});
@@ -34,7 +39,7 @@ function buildZadarmaAuth(methodPath, params, key, secret) {
   };
 }
 
-export async function POST(req) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const phoneNumber = normalizePhoneNumber(body?.phoneNumber || '');
@@ -79,7 +84,7 @@ export async function POST(req) {
     }
 
     const methodPath = '/v1/request/callback/';
-    const params = {
+    const params: Record<string, string> = {
       from: zadarmaSip,
       to: phoneNumber,
     };
@@ -109,7 +114,7 @@ export async function POST(req) {
 
     const rawText = await response.text();
 
-    let parsedResponse = null;
+    let parsedResponse: unknown = null;
     try {
       parsedResponse = rawText ? JSON.parse(rawText) : null;
     } catch {
