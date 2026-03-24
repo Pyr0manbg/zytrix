@@ -4,7 +4,7 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
-// GET (verification)
+// ✅ GET (verification)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const echo = searchParams.get('zd_echo');
@@ -16,9 +16,10 @@ export async function GET(req: NextRequest) {
   return new Response('OK');
 }
 
-// POST (webhook)
+// ✅ POST (webhook)
 export async function POST(req: NextRequest) {
   try {
+    // Zadarma праща x-www-form-urlencoded (НЕ JSON)
     const bodyText = await req.text();
     const params = new URLSearchParams(bodyText);
     const payload = Object.fromEntries(params.entries());
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
       payload.status ||
       'unknown';
 
+    // 📦 записваме raw събитие
     const { error } = await supabaseAdmin.from('call_events').insert({
       provider: 'zadarma',
       event_type: String(eventType),
@@ -54,38 +56,41 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 📞 основна call логика
     if (externalCallId) {
       const updateData: any = {
         external_call_id: externalCallId,
         call_status: eventType,
       };
 
-      if (eventType?.includes('OUT')) {
-        updateData.direction = 'outbound';
-      }
+      // direction
+      if (eventType?.includes('OUT')) updateData.direction = 'outbound';
+      if (eventType?.includes('IN')) updateData.direction = 'inbound';
 
-      if (eventType?.includes('IN')) {
-        updateData.direction = 'inbound';
-      }
-
+      // номера
       if (payload.from) updateData.from_number = payload.from;
       if (payload.to) updateData.to_number = payload.to;
 
+      // старт
       if (eventType === 'NOTIFY_OUT_START' || eventType === 'NOTIFY_START') {
         updateData.started_at = new Date().toISOString();
       }
 
+      // край
       if (eventType === 'NOTIFY_OUT_END' || eventType === 'NOTIFY_END') {
         updateData.ended_at = new Date().toISOString();
       }
 
+      // 🎯 RECORDING ЛОГИКА
       if (eventType === 'NOTIFY_RECORD' && payload.call_id_with_rec) {
+        console.log('➡️ RECORD EVENT TRIGGERED');
+
         const callIdWithRec = payload.call_id_with_rec;
         const key = process.env.ZADARMA_KEY!;
         const secret = process.env.ZADARMA_SECRET!;
 
         const method = '/v1/pbx/record/request/';
-        const query = `call_id=${callIdWithRec}`;
+        const query = `call_id_with_rec=${callIdWithRec}`;
 
         const signature = crypto
           .createHmac('sha1', secret)
@@ -94,18 +99,32 @@ export async function POST(req: NextRequest) {
 
         const auth = Buffer.from(`${key}:${signature}`).toString('base64');
 
-        const response = await fetch(`https://api.zadarma.com${method}?${query}`, {
-          headers: {
-            Authorization: `Basic ${auth}`,
-          },
-        });
+        console.log('➡️ REQUESTING RECORD LINK:', query);
 
-        const data = await response.json();
+        const response = await fetch(
+          `https://api.zadarma.com${method}?${query}`,
+          {
+            headers: {
+              Authorization: `Basic ${auth}`,
+            },
+          }
+        );
 
-        console.log('RECORD RESPONSE:', data);
+        const rawText = await response.text();
+
+        console.log('RECORD STATUS:', response.status);
+        console.log('RECORD RAW:', rawText);
+
+        let data: any = null;
+        try {
+          data = JSON.parse(rawText);
+        } catch (e) {
+          console.error('JSON PARSE ERROR:', e);
+        }
 
         console.log('RECORD RESPONSE FULL:', JSON.stringify(data));
 
+        // 🧠 различни варианти на response
         if (data?.link) {
           updateData.recording_url = data.link;
         } else if (data?.data?.link) {
@@ -115,6 +134,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // 💾 запис в calls таблица
       await supabaseAdmin.from('calls').upsert(updateData, {
         onConflict: 'external_call_id',
       });
