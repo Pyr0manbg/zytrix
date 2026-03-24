@@ -423,20 +423,54 @@ export default function Page() {
     }
   }
 
-  function addCalendarEvent() {
-    if (!eventTitle.trim()) return;
+async function addCalendarEvent() {
+  if (!eventTitle.trim()) return;
 
-    const newEvent: CalendarEvent = {
-      id: Date.now(),
-      dateKey: selectedDateKey,
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      alert('Not authenticated');
+      return;
+    }
+
+    const payload = {
+      user_id: session.user.id,
       title: eventTitle.trim(),
-      time: eventTime,
-      type: eventType,
+      event_date: selectedDateKey, // YYYY-MM-DD
+      event_time: eventTime,
+      event_type: eventType,
+    };
+
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('ADD EVENT ERROR:', error);
+      alert('Failed to add event');
+      return;
+    }
+
+    // добавяме в local state (за моментален UI)
+    const newEvent: CalendarEvent = {
+      id: data.id,
+      dateKey: data.event_date,
+      title: data.title,
+      time: data.event_time,
+      type: data.event_type,
     };
 
     setCalendarEvents((prev) => [...prev, newEvent]);
     setEventTitle('');
+  } catch (err) {
+    console.error('ADD EVENT ERROR:', err);
   }
+}
 
   function deleteEvent(id: number) {
     setCalendarEvents((prev) => prev.filter((event) => event.id !== id));
