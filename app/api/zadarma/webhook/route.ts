@@ -15,10 +15,12 @@ function buildZadarmaAuth(method: string, params: Record<string, string>) {
   const paramsStr = new URLSearchParams(sortedEntries).toString();
   const md5 = crypto.createHash('md5').update(paramsStr).digest('hex');
 
-  const signature = crypto
+  const hexDigest = crypto
     .createHmac('sha1', secret)
     .update(method + paramsStr + md5)
-    .digest('base64');
+    .digest('hex');
+
+  const signature = Buffer.from(hexDigest, 'utf8').toString('base64');
 
   return {
     authorizationHeader: `${key}:${signature}`,
@@ -41,7 +43,6 @@ export async function GET(req: NextRequest) {
 // POST (webhook)
 export async function POST(req: NextRequest) {
   try {
-    // Zadarma sends form-urlencoded, not JSON
     const bodyText = await req.text();
     const formParams = new URLSearchParams(bodyText);
     const payload = Object.fromEntries(formParams.entries());
@@ -61,13 +62,15 @@ export async function POST(req: NextRequest) {
       'unknown';
 
     // 1) Save raw event
-    const { error: callEventsError } = await supabaseAdmin.from('call_events').insert({
-      provider: 'zadarma',
-      event_type: String(eventType),
-      external_call_id: externalCallId,
-      payload,
-      processed: false,
-    });
+    const { error: callEventsError } = await supabaseAdmin
+      .from('call_events')
+      .insert({
+        provider: 'zadarma',
+        event_type: String(eventType),
+        external_call_id: externalCallId,
+        payload,
+        processed: false,
+      });
 
     if (callEventsError) {
       console.error('ZADARMA WEBHOOK INSERT ERROR:', callEventsError);
@@ -104,67 +107,90 @@ export async function POST(req: NextRequest) {
       }
 
       // 3) Try to fetch recording link when recording event arrives
-      if (eventType === 'NOTIFY_RECORD' && payload.pbx_call_id) {
-        const pbxCallId = payload.pbx_call_id;
+      if (eventType === 'NOTIFY_RECORD') {
+        const pbxCallId = payload.pbx_call_id?.toString() || null;
+        const callIdWithRec = payload.call_id_with_rec?.toString() || null;
 
         console.log('➡️ RECORD EVENT TRIGGERED');
-        console.log('ZADARMA KEY:', process.env.ZADARMA_KEY);
+        console.log('ZADARMA KEY EXISTS:', !!process.env.ZADARMA_KEY);
         console.log('ZADARMA SECRET EXISTS:', !!process.env.ZADARMA_SECRET);
+        console.log('pbx_call_id:', pbxCallId);
+        console.log('call_id_with_rec:', callIdWithRec);
 
         const method = '/v1/pbx/record/request/';
-        const requestParams = {
-          pbx_call_id: pbxCallId,
-        };
 
-        const { authorizationHeader, paramsStr } = buildZadarmaAuth(
-          method,
-          requestParams
-        );
+        // Първо пробваме с call_id, защото идва директно от NOTIFY_RECORD.
+        // Ако го няма, падаме към pbx_call_id.
+        const requestParams: Record<string, string> = callIdWithRec
+          ? { call_id: callIdWithRec }
+          : pbxCallId
+          ? { pbx_call_id: pbxCallId }
+          : {};
 
-        console.log('➡️ REQUESTING RECORD LINK:', paramsStr);
-        console.log('➡️ AUTH HEADER PREFIX:', authorizationHeader.split(':')[0]);
+        if (Object.keys(requestParams).length > 0) {
+          const { authorizationHeader, paramsStr } = buildZadarmaAuth(
+            method,
+            requestParams
+          );
 
-        const response = await fetch(
-          `https://api.zadarma.com${method}?${paramsStr}`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: authorizationHeader,
-            },
+          console.log('➡️ REQUESTING RECORD LINK:', paramsStr);
+          console.log(
+            '➡️ AUTH HEADER PREFIX:',
+            authorizationHeader.split(':')[0]
+          );
+
+          const response = await fetch(
+            `https://api.zadarma.com${method}?${paramsStr}`,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: authorizationHeader,
+                Accept: 'application/json',
+              },
+              cache: 'no-store',
+            }
+          );
+
+          const rawText = await response.text();
+
+          console.log('RECORD STATUS:', response.status);
+          console.log('RECORD RAW:', rawText);
+
+          let data: any = null;
+          try {
+            data = JSON.parse(rawText);
+          } catch (e) {
+            console.error('RECORD JSON PARSE ERROR:', e);
           }
-        );
 
-        const rawText = await response.text();
+          console.log('RECORD RESPONSE FULL:', JSON.stringify(data));
 
-        console.log('RECORD STATUS:', response.status);
-        console.log('RECORD RAW:', rawText);
+          const recordingUrl =
+            data?.link ||
+            data?.data?.link ||
+            data?.record_link ||
+            data?.data?.record_link ||
+            data?.links?.[0] ||
+            data?.data?.links?.[0] ||
+            null;
 
-        let data: any = null;
-        try {
-          data = JSON.parse(rawText);
-        } catch (e) {
-          console.error('RECORD JSON PARSE ERROR:', e);
-        }
-
-        console.log('RECORD RESPONSE FULL:', JSON.stringify(data));
-
-        const recordingUrl =
-          data?.link ||
-          data?.data?.link ||
-          data?.record_link ||
-          data?.data?.record_link ||
-          data?.links?.[0] ||
-          data?.data?.links?.[0] ||
-          null;
-
-        if (recordingUrl) {
-          updateData.recording_url = recordingUrl;
+          if (recordingUrl) {
+            updateData.recording_url = recordingUrl;
+            console.log('✅ RECORDING URL SAVED:', recordingUrl);
+          } else {
+            console.log('⚠️ NO RECORDING URL FOUND IN RESPONSE');
+          }
+        } else {
+          console.log('⚠️ NOTIFY_RECORD received without usable IDs');
         }
       }
 
-      const { error: callsError } = await supabaseAdmin.from('calls').upsert(updateData, {
-        onConflict: 'external_call_id',
-      });
+      const { error: callsError } = await supabaseAdmin.from('calls').upsert(
+        updateData,
+        {
+          onConflict: 'external_call_id',
+        }
+      );
 
       if (callsError) {
         console.error('CALLS UPSERT ERROR:', callsError);

@@ -1,24 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-function normalizePhoneNumber(phone: string) {
+function normalizePhoneNumber(phone) {
   return phone.replace(/[^\d+]/g, '').trim();
 }
 
-function isValidPhoneNumber(phone: string) {
+function isValidPhoneNumber(phone) {
   const normalized = normalizePhoneNumber(phone);
   return normalized.length >= 8;
 }
 
-function buildZadarmaSignature(
-  methodPath: string,
-  params: Record<string, string>,
-  secret: string
-) {
+function buildZadarmaAuth(methodPath, params, key, secret) {
   const sortedParams = Object.keys(params)
     .sort()
-    .reduce<Record<string, string>>((acc, key) => {
-      acc[key] = params[key];
+    .reduce((acc, k) => {
+      acc[k] = params[k];
       return acc;
     }, {});
 
@@ -30,10 +26,15 @@ function buildZadarmaSignature(
     .update(methodPath + queryString + md5)
     .digest('hex');
 
-  return Buffer.from(hexDigest).toString('base64');
+  const signature = Buffer.from(hexDigest, 'utf8').toString('base64');
+
+  return {
+    queryString,
+    authorization: `${key}:${signature}`,
+  };
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req) {
   try {
     const body = await req.json();
     const phoneNumber = normalizePhoneNumber(body?.phoneNumber || '');
@@ -52,10 +53,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-      const zadarmaKey = process.env.ZADARMA_KEY?.trim();
-      const zadarmaSecret = process.env.ZADARMA_SECRET?.trim();
-      const zadarmaSip = process.env.ZADARMA_SIP?.trim() || '';
-      const zadarmaCallerId = process.env.ZADARMA_CALLER_ID?.trim() || '';
+    const zadarmaKey = process.env.ZADARMA_KEY?.trim();
+    const zadarmaSecret = process.env.ZADARMA_SECRET?.trim();
+    const zadarmaSip = process.env.ZADARMA_SIP?.trim() || '';
+    const zadarmaCallerId = process.env.ZADARMA_CALLER_ID?.trim() || '';
 
     if (!zadarmaKey || !zadarmaSecret) {
       return NextResponse.json(
@@ -71,59 +72,61 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'ZADARMA_SIP is missing in .env.local',
+          error: 'ZADARMA_SIP is missing in env',
         },
         { status: 500 }
       );
     }
-    const methodPath = '/v1/request/callback/';
-    const params: Record<string, string> = {
-        from: '100',
-        to: phoneNumber,
-      };
-   // if (zadarmaCallerId) {
-    //    params.caller_id = zadarmaCallerId;
-  //  } 
 
-    const signature = buildZadarmaSignature(
+    const methodPath = '/v1/request/callback/';
+    const params = {
+      from: zadarmaSip,
+      to: phoneNumber,
+    };
+
+    if (zadarmaCallerId) {
+      params.caller_id = zadarmaCallerId;
+    }
+
+    const { queryString, authorization } = buildZadarmaAuth(
       methodPath,
       params,
+      zadarmaKey,
       zadarmaSecret
     );
 
-const queryString = new URLSearchParams(params).toString();
-
-const response = await fetch(
-  `https://api.zadarma.com${methodPath}?${queryString}`,
-  {
-    method: 'GET',
-    headers: {
-      Authorization: `${zadarmaKey}:${signature}`,
-    },
-    cache: 'no-store',
-  }
-);
+    const response = await fetch(
+      `https://api.zadarma.com${methodPath}?${queryString}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: authorization,
+          Accept: 'application/json',
+        },
+        cache: 'no-store',
+      }
+    );
 
     const rawText = await response.text();
 
-    let parsedResponse: unknown = null;
+    let parsedResponse = null;
     try {
       parsedResponse = rawText ? JSON.parse(rawText) : null;
     } catch {
       parsedResponse = rawText;
     }
 
-if (!response.ok) {
-  console.error('ZADARMA ERROR:', parsedResponse);
+    if (!response.ok) {
+      console.error('ZADARMA ERROR:', parsedResponse);
 
-  return NextResponse.json(
-    {
-      success: false,
-      error: JSON.stringify(parsedResponse),
-    },
-    { status: 502 }
-  );
-}
+      return NextResponse.json(
+        {
+          success: false,
+          error: parsedResponse,
+        },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
