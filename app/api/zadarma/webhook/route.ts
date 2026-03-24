@@ -44,18 +44,46 @@ export async function POST(req: NextRequest) {
       processed: false,
     });
 
-    // UPSERT INTO calls
     if (externalCallId) {
-      await supabaseAdmin.from('calls').upsert(
-        {
-          external_call_id: externalCallId,
-          status: eventType,
-          raw_payload: payload,
-        },
-        {
-          onConflict: 'external_call_id',
-        }
-      );
+      const updateData: any = {
+        external_call_id: externalCallId,
+        call_status: eventType,
+      };
+
+      // direction
+      if (eventType?.includes('OUT')) {
+        updateData.direction = 'outbound';
+      }
+
+      if (eventType?.includes('IN')) {
+        updateData.direction = 'inbound';
+      }
+
+      // phone numbers
+      if (payload.from) updateData.from_number = payload.from;
+      if (payload.to) updateData.to_number = payload.to;
+
+      // timestamps
+      if (eventType === 'NOTIFY_OUT_START' || eventType === 'NOTIFY_START') {
+        updateData.started_at = new Date().toISOString();
+      }
+
+      if (eventType === 'NOTIFY_OUT_END' || eventType === 'NOTIFY_END') {
+        updateData.ended_at = new Date().toISOString();
+      }
+
+      // recording
+      if (eventType === 'NOTIFY_RECORD') {
+        updateData.recording_url =
+          payload.record_link ||
+          payload.link ||
+          payload.record ||
+          null;
+      }
+
+      await supabaseAdmin.from('calls').upsert(updateData, {
+        onConflict: 'external_call_id',
+      });
     }
 
     if (error) {
