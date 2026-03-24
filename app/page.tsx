@@ -436,10 +436,24 @@ async function addCalendarEvent() {
       return;
     }
 
+    const { data: broker, error: brokerError } = await supabase
+      .from('brokers')
+      .select('id, agency_id, email, broker_email')
+      .or(`email.eq.${session.user.email},broker_email.eq.${session.user.email}`)
+      .maybeSingle();
+
+    if (brokerError) {
+      console.error('BROKER LOAD ERROR:', brokerError);
+      alert('Failed to load broker profile');
+      return;
+    }
+
     const payload = {
       user_id: session.user.id,
+      agency_id: broker?.agency_id ?? null,
+      broker_id: broker?.id ?? null,
       title: eventTitle.trim(),
-      event_date: selectedDateKey, // YYYY-MM-DD
+      event_date: selectedDateKey,
       event_time: eventTime,
       event_type: eventType,
     };
@@ -456,7 +470,6 @@ async function addCalendarEvent() {
       return;
     }
 
-    // добавяме в local state (за моментален UI)
     const newEvent: CalendarEvent = {
       id: data.id,
       dateKey: data.event_date,
