@@ -191,6 +191,10 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
+  loadCalendarEvents();
+}, []);
+
+  useEffect(() => {
     const storedLanguage = getStoredLanguage();
     setLang(storedLanguage);
   }, []);
@@ -296,6 +300,40 @@ export default function Page() {
 
     setClientsLoading(false);
   }
+
+  async function loadCalendarEvents() {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .select('id, title, event_date, event_time, event_type')
+      .eq('user_id', session.user.id)
+      .order('event_date', { ascending: true })
+      .order('event_time', { ascending: true });
+
+    if (error) {
+      console.error('LOAD CALENDAR EVENTS ERROR:', error);
+      return;
+    }
+
+    const mappedEvents: CalendarEvent[] = (data || []).map((item: any) => ({
+      id: item.id,
+      dateKey: item.event_date,
+      title: item.title,
+      time: item.event_time,
+      type: item.event_type,
+    }));
+
+    setCalendarEvents(mappedEvents);
+  } catch (err) {
+    console.error('LOAD CALENDAR EVENTS ERROR:', err);
+  }
+}
 
   async function loadClientCalls(clientId: string) {
     const { data, error } = await supabase
