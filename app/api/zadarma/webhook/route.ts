@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,13 +45,21 @@ export async function POST(req: NextRequest) {
       processed: false,
     });
 
+    if (error) {
+      console.error('ZADARMA WEBHOOK INSERT ERROR:', error);
+
+      return new Response(JSON.stringify({ success: false }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     if (externalCallId) {
       const updateData: any = {
         external_call_id: externalCallId,
         call_status: eventType,
       };
 
-      // direction
       if (eventType?.includes('OUT')) {
         updateData.direction = 'outbound';
       }
@@ -59,11 +68,9 @@ export async function POST(req: NextRequest) {
         updateData.direction = 'inbound';
       }
 
-      // phone numbers
       if (payload.from) updateData.from_number = payload.from;
       if (payload.to) updateData.to_number = payload.to;
 
-      // timestamps
       if (eventType === 'NOTIFY_OUT_START' || eventType === 'NOTIFY_START') {
         updateData.started_at = new Date().toISOString();
       }
@@ -72,26 +79,38 @@ export async function POST(req: NextRequest) {
         updateData.ended_at = new Date().toISOString();
       }
 
-      // recording
-      if (eventType === 'NOTIFY_RECORD') {
-        updateData.recording_url =
-          payload.record_link ||
-          payload.link ||
-          payload.record ||
-          null;
+      if (eventType === 'NOTIFY_RECORD' && payload.call_id_with_rec) {
+        const callIdWithRec = payload.call_id_with_rec;
+        const key = process.env.ZADARMA_KEY!;
+        const secret = process.env.ZADARMA_SECRET!;
+
+        const method = '/v1/pbx/record/request/';
+        const query = `call_id=${callIdWithRec}`;
+
+        const signature = crypto
+          .createHmac('sha1', secret)
+          .update(method + query)
+          .digest('base64');
+
+        const auth = Buffer.from(`${key}:${signature}`).toString('base64');
+
+        const response = await fetch(`https://api.zadarma.com${method}?${query}`, {
+          headers: {
+            Authorization: `Basic ${auth}`,
+          },
+        });
+
+        const data = await response.json();
+
+        console.log('RECORD RESPONSE:', data);
+
+        if (data?.link) {
+          updateData.recording_url = data.link;
+        }
       }
 
       await supabaseAdmin.from('calls').upsert(updateData, {
         onConflict: 'external_call_id',
-      });
-    }
-
-    if (error) {
-      console.error('ZADARMA WEBHOOK INSERT ERROR:', error);
-
-      return new Response(JSON.stringify({ success: false }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
       });
     }
 
