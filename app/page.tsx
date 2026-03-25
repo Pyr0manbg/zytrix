@@ -23,23 +23,11 @@ import type { CalendarEvent, CallItem, Client, Task } from './types';
 import {
   formatDateKey,
   getCalendarDays,
-  parseDateKey,
-  toDateKeyFromString,
 } from './utils';
 
 import AddClientModal from './components/AddClientModal';
 import CallConfirmModal from './components/CallConfirmModal';
 import NewCallModal from './components/NewCallModal';
-
-const [recentCalls, setRecentCalls] = useState<
-  Array<{
-    id: number | string;
-    clientName?: string;
-    duration?: string;
-    status?: string;
-    insight?: string;
-  }>
->([]);
 
 function ZytrixLogo({ className = 'h-10 w-10' }: { className?: string }) {
   return (
@@ -90,6 +78,15 @@ export default function Page() {
   const [manualCallPhone, setManualCallPhone] = useState('');
   const [newCallSubmitting, setNewCallSubmitting] = useState(false);
   const [assistantAnswer, setAssistantAnswer] = useState('');
+  const [recentCalls, setRecentCalls] = useState<
+    Array<{
+      id: number | string;
+      clientName?: string;
+      duration?: string;
+      status?: string;
+      insight?: string;
+    }>
+  >([]);
 
   const today = new Date();
   const [calendarMonth, setCalendarMonth] = useState<Date>(
@@ -100,6 +97,7 @@ export default function Page() {
   const [eventTime, setEventTime] = useState('10:00');
   const [eventType, setEventType] = useState<CalendarEvent['type']>('Viewing');
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+
 
   const selectedClient =
     clients.find((c) => c.id === selectedClientId) || clients[0] || null;
@@ -202,28 +200,7 @@ const tasks = useMemo<Task[]>(() => {
     }
   }, [selectedClientId]);
 
-  useEffect(() => {
-    const followUpEvents: CalendarEvent[] = clients
-      .filter((c) => c.nextStep)
-      .map((client) => {
-        const dateKey = toDateKeyFromString(client.nextStep);
-        if (!dateKey) return null;
 
-        return {
-          id: Number(`${client.id}99`),
-          dateKey,
-          title: `Follow-up: ${client.name}`,
-          time: '10:00',
-          type: 'Follow-up' as const,
-        };
-      })
-      .filter(Boolean) as CalendarEvent[];
-
-    setCalendarEvents((prev) => {
-      const manualEvents = prev.filter((e) => e.type !== 'Follow-up');
-      return [...manualEvents, ...followUpEvents];
-    });
-  }, [clients]);
 
   async function getCurrentBroker() {
   const {
