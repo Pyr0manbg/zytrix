@@ -31,13 +31,15 @@ import AddClientModal from './components/AddClientModal';
 import CallConfirmModal from './components/CallConfirmModal';
 import NewCallModal from './components/NewCallModal';
 
-const recentCalls: Array<{
-  id: number | string;
-  clientName?: string;
-  duration?: string;
-  status?: string;
-  insight?: string;
-}> = [];
+const [recentCalls, setRecentCalls] = useState<
+  Array<{
+    id: number | string;
+    clientName?: string;
+    duration?: string;
+    status?: string;
+    insight?: string;
+  }>
+>([]);
 
 function ZytrixLogo({ className = 'h-10 w-10' }: { className?: string }) {
   return (
@@ -182,6 +184,10 @@ const tasks = useMemo<Task[]>(() => {
   }, []);
 
   useEffect(() => {
+  loadRecentCalls();
+}, []);
+
+  useEffect(() => {
   loadCalendarEvents();
 }, []);
 
@@ -219,6 +225,27 @@ const tasks = useMemo<Task[]>(() => {
     });
   }, [clients]);
 
+  async function getCurrentBroker() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.user?.email) return null;
+
+  const { data, error } = await supabase
+    .from('brokers')
+    .select('id, agency_id, email, broker_email')
+    .or(`email.eq.${session.user.email},broker_email.eq.${session.user.email}`)
+    .maybeSingle();
+
+  if (error) {
+    console.error('GET CURRENT BROKER ERROR:', error);
+    return null;
+  }
+
+  return data;
+}
+
   async function startManualVoipCall() {
     if (!manualCallPhone.trim()) return;
 
@@ -238,11 +265,21 @@ const tasks = useMemo<Task[]>(() => {
         return;
       }
 
+    const broker = await getCurrentBroker();
+
+      if (!broker?.id) {
+        alert('Broker profile not found.');
+        return;
+      }
+
       await supabase.from('call_logs').insert({
         call_result: `Manual outbound call initiated to ${manualCallPhone.trim()}`,
         notes: 'Started from Zytrix dashboard',
-        broker_id: 1,
+        broker_id: broker.id,
+        agency_id: broker.agency_id ?? null,
       });
+
+      await loadRecentCalls();
 
       alert('Call request sent successfully.');
 
@@ -291,6 +328,66 @@ const tasks = useMemo<Task[]>(() => {
 
     setClientsLoading(false);
   }
+
+  async function loadRecentCalls() {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) return;
+
+    const { data: broker, error: brokerError } = await supabase
+      .from('brokers')
+      .select('id, agency_id, email, broker_email')
+      .or(`email.eq.${session.user.email},broker_email.eq.${session.user.email}`)
+      .maybeSingle();
+
+    if (brokerError) {
+      console.error('LOAD RECENT CALLS BROKER ERROR:', brokerError);
+      return;
+    }
+
+    let query = supabase
+      .from('call_logs')
+      .select(`
+        id,
+        call_result,
+        notes,
+        created_at,
+        broker_id,
+        client_id,
+        clients (
+          client_name
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (broker?.id) {
+      query = query.eq('broker_id', broker.id);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('LOAD RECENT CALLS ERROR:', error);
+      return;
+    }
+
+    const mappedCalls = (data || []).map((call: any) => ({
+      id: call.id,
+      clientName: call.clients?.client_name || 'Unknown client',
+      duration: '—',
+      status: 'Processed',
+      insight: call.call_result || call.notes || 'No insight',
+    }));
+
+    setRecentCalls(mappedCalls);
+  } catch (err) {
+    console.error('LOAD RECENT CALLS ERROR:', err);
+  }
+}
 
   async function loadCalendarEvents() {
   try {
@@ -355,26 +452,38 @@ const tasks = useMemo<Task[]>(() => {
     );
   }
 
-  async function logCall(clientId: string) {
-    const payload = {
-      client_id: Number(clientId),
-      call_result: 'Call initiated',
-      notes: 'Manual call from Zytrix',
-      broker_id: 1,
-    };
+async function logCall(clientId: string) {
+  const broker = await getCurrentBroker();
 
-    const { data, error } = await supabase.from('call_logs').insert(payload).select();
-
-    console.log('CALL LOG DATA:', data);
-    console.log('CALL LOG ERROR:', error);
-
-    if (error) {
-      alert(`Error logging call: ${error.message || 'Unknown error'}`);
-      return;
-    }
-
-    alert('Call logged successfully');
+  if (!broker?.id) {
+    alert('Broker profile not found.');
+    return;
   }
+
+  const payload = {
+    client_id: Number(clientId),
+    call_result: 'Call initiated',
+    notes: 'Manual call from Zytrix',
+    broker_id: broker.id,
+    agency_id: broker.agency_id ?? null,
+  };
+
+  const { data, error } = await supabase
+    .from('call_logs')
+    .insert(payload)
+    .select();
+
+  console.log('CALL LOG DATA:', data);
+  console.log('CALL LOG ERROR:', error);
+
+  if (error) {
+    alert(`Error logging call: ${error.message || 'Unknown error'}`);
+    return;
+  }
+
+  await loadRecentCalls();
+  alert('Call logged successfully');
+}
 
   async function addClient() {
     if (!newClientName.trim()) return;
