@@ -25,6 +25,7 @@ type TodayTabProps = {
   pendingTasks: number;
   tasks: Task[];
   recentCalls: CallItem[];
+  onToggleTask: (id: number, currentDone: boolean) => void | Promise<void>;
 };
 
 export default function TodayTab({
@@ -33,6 +34,7 @@ export default function TodayTab({
   pendingTasks,
   tasks,
   recentCalls,
+  onToggleTask,
 }: TodayTabProps) {
   return (
     <>
@@ -59,7 +61,7 @@ export default function TodayTab({
                   <input
                     type="checkbox"
                     checked={task.done}
-                    readOnly
+                    onChange={() => onToggleTask(task.id, task.done)}
                     className="h-4 w-4 rounded border-[#334155] bg-[#111827]"
                   />
 

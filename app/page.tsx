@@ -120,27 +120,18 @@ export default function Page() {
   );
 
   const selectedDateKey = formatDateKey(selectedDate);
-
-  const tasks = useMemo<Task[]>(() => {
-    const now = new Date();
-
-    return [...calendarEvents]
-      .map((event, index) => {
-        const eventDate = parseDateKey(event.dateKey);
-        const [hours, minutes] = event.time.split(':').map(Number);
-
-        eventDate.setHours(hours || 0, minutes || 0, 0, 0);
-
-        return {
-          id: typeof event.id === 'number' ? event.id : index,
-          title: event.title,
-          due: `${event.dateKey} ${event.time}`,
-          done: eventDate < now,
-        };
-      })
-      .sort((a, b) => a.due.localeCompare(b.due))
-      .slice(0, 5);
-  }, [calendarEvents]);
+const tasks = useMemo<Task[]>(() => {
+  return [...calendarEvents]
+    .filter((event) => event.is_task !== false)
+    .map((event, index) => ({
+      id: typeof event.id === 'number' ? event.id : index,
+      title: event.title,
+      due: `${event.dateKey} ${event.time}`,
+      done: Boolean(event.done),
+    }))
+    .sort((a, b) => a.due.localeCompare(b.due))
+    .slice(0, 5);
+}, [calendarEvents]);
 
   const completedTasks = tasks.filter((t) => t.done).length;
   const pendingTasks = tasks.filter((t) => !t.done).length;
@@ -311,7 +302,7 @@ export default function Page() {
 
     const { data, error } = await supabase
       .from('calendar_events')
-      .select('id, title, event_date, event_time, event_type')
+      .select('id, title, event_date, event_time, event_type, done, is_task')
       .eq('user_id', session.user.id)
       .order('event_date', { ascending: true })
       .order('event_time', { ascending: true });
@@ -321,13 +312,15 @@ export default function Page() {
       return;
     }
 
-    const mappedEvents: CalendarEvent[] = (data || []).map((item: any) => ({
-      id: item.id,
-      dateKey: item.event_date,
-      title: item.title,
-      time: item.event_time,
-      type: item.event_type,
-    }));
+   const mappedEvents: CalendarEvent[] = (data || []).map((item: any) => ({
+  id: item.id,
+  dateKey: item.event_date,
+  title: item.title,
+  time: item.event_time,
+  type: item.event_type,
+  done: item.done ?? false,
+  is_task: item.is_task ?? true,
+}));
 
     setCalendarEvents(mappedEvents);
   } catch (err) {
@@ -494,6 +487,8 @@ async function addCalendarEvent() {
       event_date: selectedDateKey,
       event_time: eventTime,
       event_type: eventType,
+      done: false,
+      is_task: true,
     };
 
     const { data, error } = await supabase
@@ -514,6 +509,8 @@ async function addCalendarEvent() {
       title: data.title,
       time: data.event_time,
       type: data.event_type,
+      done: data.done ?? false,
+      is_task: data.is_task ?? true,
     };
 
     setCalendarEvents((prev) => [...prev, newEvent]);
@@ -540,6 +537,30 @@ async function deleteEvent(id: number) {
   } catch (err) {
     console.error('DELETE EVENT ERROR:', err);
     alert('Unexpected error while deleting event');
+  }
+}
+
+async function toggleTaskDone(id: number, currentDone: boolean) {
+  try {
+    const { error } = await supabase
+      .from('calendar_events')
+      .update({ done: !currentDone })
+      .eq('id', id);
+
+    if (error) {
+      console.error('TOGGLE TASK ERROR:', error);
+      alert('Failed to update task');
+      return;
+    }
+
+    setCalendarEvents((prev) =>
+      prev.map((event) =>
+        event.id === id ? { ...event, done: !currentDone } : event
+      )
+    );
+  } catch (err) {
+    console.error('TOGGLE TASK ERROR:', err);
+    alert('Unexpected error while updating task');
   }
 }
 

@@ -30,6 +30,8 @@ export type CalendarEvent = {
   title: string;
   time: string;
   type: 'Viewing' | 'Follow-up' | 'Client call' | 'Meeting';
+  done?: boolean;
+  is_task?: boolean;
 };
 
 export type TabId = (
