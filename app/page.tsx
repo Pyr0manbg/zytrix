@@ -625,6 +625,7 @@ async function toggleTaskDone(id: number, currentDone: boolean) {
               pendingTasks={pendingTasks}
               tasks={tasks}
               recentCalls={recentCalls}
+              onToggleTask={toggleTaskDone}
             />
           )}
 
