@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
+function unwrap(value: any) {
+  if (value && typeof value === 'object' && 'type' in value) {
+    return value.type;
+  }
+  return value;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const raw = await req.text();
@@ -20,32 +27,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('FINALIZE queue_id:', body?.queue_id);
-    console.log('FINALIZE external_call_id:', body?.external_call_id);
+    const props = body?.properties ?? {};
 
-    const external_call_id = body?.external_call_id?.toString()?.trim();
+    const queue_id = body?.queue_id ?? props?.queue_id ?? null;
+    const external_call_id = unwrap(body?.external_call_id ?? props?.external_call_id)?.toString()?.trim();
+
+    console.log('FINALIZE queue_id:', queue_id);
+    console.log('FINALIZE external_call_id:', external_call_id);
 
     if (!external_call_id) {
       return NextResponse.json(
-        { success: false, error: 'external_call_id is required' },
+        {
+          success: false,
+          error: 'external_call_id is required',
+          debug_keys: Object.keys(body || {}),
+          debug_property_keys: Object.keys(props || {}),
+        },
         { status: 400 }
       );
     }
 
     const payload: Record<string, any> = {
       external_call_id,
-      phone_number: body?.phone_number ?? null,
-      recording_url: body?.recording_url ?? null,
-      transcript_text: body?.transcript_text ?? null,
-      summary: body?.summary ?? null,
-      conversation_type: body?.conversation_type ?? null,
-      sentiment: body?.sentiment ?? null,
-      motivation_score: body?.motivation_score ?? null,
-      deal_probability: body?.deal_probability ?? null,
-      next_step: body?.next_step ?? null,
-      follow_up_date: body?.follow_up_date ?? null,
-      coaching: body?.coaching ?? null,
-      processing_status: body?.processing_status ?? 'completed',
+      phone_number: unwrap(body?.phone_number ?? props?.phone_number) ?? null,
+      recording_url: unwrap(body?.recording_url ?? props?.recording_url) ?? null,
+      transcript_text: unwrap(body?.transcript_text ?? props?.transcript_text) ?? null,
+      summary: unwrap(body?.summary ?? props?.summary) ?? null,
+      conversation_type: unwrap(body?.conversation_type ?? props?.conversation_type) ?? null,
+      sentiment: unwrap(body?.sentiment ?? props?.sentiment) ?? null,
+      motivation_score: unwrap(body?.motivation_score ?? props?.motivation_score) ?? null,
+      deal_probability: unwrap(body?.deal_probability ?? props?.deal_probability) ?? null,
+      next_step: unwrap(body?.next_step ?? props?.next_step) ?? null,
+      follow_up_date: unwrap(body?.follow_up_date ?? props?.follow_up_date) ?? null,
+      coaching: unwrap(body?.coaching ?? props?.coaching) ?? null,
+      processing_status: unwrap(body?.processing_status ?? props?.processing_status) ?? 'completed',
       updated_at: new Date().toISOString(),
     };
 
@@ -106,8 +121,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (body?.queue_id) {
-      console.log('FINALIZE QUEUE UPDATE: updating queue row', body.queue_id);
+    if (queue_id) {
+      console.log('FINALIZE QUEUE UPDATE: updating queue row', queue_id);
 
       const { error: queueError } = await supabaseAdmin
         .from('call_processing_queue')
@@ -116,7 +131,7 @@ export async function POST(req: NextRequest) {
           processed: true,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', body.queue_id);
+        .eq('id', queue_id);
 
       if (queueError) {
         console.error('QUEUE UPDATE ERROR:', queueError);
