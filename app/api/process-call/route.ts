@@ -7,7 +7,19 @@ import os from 'os';
 
 export async function POST(req: NextRequest) {
   try {
-    const { recording_url, external_call_id, queue_id } = await req.json();
+    const body = await req.json();
+
+    console.log('WEBHOOK BODY:', body);
+
+    if (body.type !== 'INSERT') {
+      return NextResponse.json({ skipped: true });
+    }
+
+    const record = body.record;
+
+    const recording_url = record?.recording_url;
+    const external_call_id = record?.external_call_id;
+    const queue_id = record?.id;
 
     if (!recording_url) {
       return NextResponse.json({ error: 'No recording_url' }, { status: 400 });
