@@ -91,8 +91,34 @@ export async function POST(req: NextRequest) {
       if (eventType.includes('OUT')) updateData.direction = 'outbound';
       if (eventType.includes('IN')) updateData.direction = 'inbound';
 
-      if (payload.from) updateData.from_number = payload.from;
-      if (payload.to) updateData.to_number = payload.to;
+let fromNumber =
+  payload.destination ||
+  payload.from ||
+  payload.caller ||
+  payload.src ||
+  payload.number ||
+  null;
+
+// ❗ Филтър: игнорирай вътрешни номера (пример: 100)
+if (fromNumber && fromNumber.length <= 4) {
+  console.log('⚠️ Ignoring internal destination:', fromNumber);
+  fromNumber = null;
+}
+
+const toNumber =
+  payload.internal || // 👉 ти (брокер)
+  payload.to ||
+  payload.called_did ||
+  payload.dst ||
+  null;
+
+if (fromNumber) updateData.from_number = fromNumber;
+if (toNumber) updateData.to_number = toNumber;
+
+console.log('📞 Parsed numbers:', {
+  fromNumber,
+  toNumber,
+});
 
       if (payload.duration && !Number.isNaN(Number(payload.duration))) {
         updateData.duration_seconds = Number(payload.duration);
