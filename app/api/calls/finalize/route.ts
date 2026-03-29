@@ -3,7 +3,25 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const raw = await req.text();
+    console.log('FINALIZE RAW BODY:', raw);
+
+    let body: Record<string, any>;
+
+    try {
+      body = JSON.parse(raw);
+      console.log('FINALIZE PARSED BODY:', body);
+    } catch (parseError) {
+      console.error('FINALIZE JSON PARSE ERROR:', parseError);
+
+      return NextResponse.json(
+        { success: false, error: 'Invalid JSON body' },
+        { status: 400 }
+      );
+    }
+
+    console.log('FINALIZE queue_id:', body?.queue_id);
+    console.log('FINALIZE external_call_id:', body?.external_call_id);
 
     const external_call_id = body?.external_call_id?.toString()?.trim();
 
@@ -37,6 +55,8 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    console.log('FINALIZE DB PAYLOAD:', payload);
+
     const { data: existingCall, error: findError } = await supabaseAdmin
       .from('calls')
       .select('id')
@@ -56,6 +76,8 @@ export async function POST(req: NextRequest) {
     let dbError;
 
     if (existingCall?.id) {
+      console.log('FINALIZE ACTION: update existing call', existingCall.id);
+
       ({ data: result, error: dbError } = await supabaseAdmin
         .from('calls')
         .update(payload)
@@ -63,6 +85,8 @@ export async function POST(req: NextRequest) {
         .select()
         .single());
     } else {
+      console.log('FINALIZE ACTION: insert new call');
+
       ({ data: result, error: dbError } = await supabaseAdmin
         .from('calls')
         .insert({
@@ -83,6 +107,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (body?.queue_id) {
+      console.log('FINALIZE QUEUE UPDATE: updating queue row', body.queue_id);
+
       const { error: queueError } = await supabaseAdmin
         .from('call_processing_queue')
         .update({
@@ -94,7 +120,11 @@ export async function POST(req: NextRequest) {
 
       if (queueError) {
         console.error('QUEUE UPDATE ERROR:', queueError);
+      } else {
+        console.log('FINALIZE QUEUE UPDATE: success');
       }
+    } else {
+      console.log('FINALIZE QUEUE UPDATE: skipped, no queue_id received');
     }
 
     return NextResponse.json({
