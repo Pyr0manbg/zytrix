@@ -105,27 +105,29 @@ export default function ClientsTab({
             </button>
           }
         >
+
           <div className="mb-5 grid gap-3 md:grid-cols-3">
-            <div className="rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4">
+            <div className="rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4 overflow-hidden">
               <p className="text-sm text-[#94A3B8]">Budget</p>
-              <p className="mt-1 font-semibold text-white">
+              <p className="mt-1 font-semibold text-white truncate">
                 {selectedClient.budget || '—'}
               </p>
             </div>
 
-            <div className="rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4">
+            <div className="rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4 overflow-hidden">
               <p className="text-sm text-[#94A3B8]">Interest</p>
-              <p className="mt-1 font-semibold text-white">
+              <p className="mt-1 font-semibold text-white line-clamp-2">
                 {selectedClient.interest || '—'}
               </p>
             </div>
 
-            <div className="rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4">
+            <div className="rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4 overflow-hidden">
               <p className="text-sm text-[#94A3B8]">Next step</p>
-              <p className="mt-1 font-semibold text-white">
+              <p className="mt-1 font-semibold text-white truncate">
                 {formatDisplayDate(selectedClient.nextStep)}
               </p>
             </div>
+
           </div>
 
           <div className="space-y-4">

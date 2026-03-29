@@ -462,17 +462,26 @@ async function logCall(clientId: string) {
   alert('Call logged successfully');
 }
 
-  async function addClient() {
-    if (!newClientName.trim()) return;
+ async function addClient() {
+  if (!newClientName.trim()) return;
 
-    const payload = {
-      client_name: newClientName.trim(),
-      phone_number: newClientPhone.trim(),
-      budget: newClientBudget.trim(),
-      notes: newClientInterest.trim(),
-      follow_up: newClientNextStep || null,
-      status: newClientStatus,
-    };
+  const broker = await getCurrentBroker(); // ← добави това
+  if (!broker?.id) {
+    alert('Broker profile not found.');
+    return;
+  }
+
+  const payload = {
+    client_name: newClientName.trim(),
+    phone_number: newClientPhone.trim(),
+    budget: newClientBudget.trim(),
+    notes: newClientInterest.trim(),
+    follow_up: newClientNextStep || null,
+    status: newClientStatus,
+    broker_id: broker.id,
+    agency_id: broker.agency_id ?? null,
+  };
+  // ... rest stays the same
 
     const { data, error } = await supabase
       .from('clients')
