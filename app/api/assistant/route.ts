@@ -6,186 +6,66 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-type ClientRow = {
-  id: number;
-  client_name: string | null;
-  phone_number: string | null;
-  budget: string | null;
-  notes: string | null;
-  follow_up: string | null;
-  status: string | null;
-};
-
-type CallLogRow = {
-  id: number;
-  client_id: number | null;
-  call_result: string | null;
-  notes: string | null;
-  created_at: string;
-};
-
-function normalize(text: string) {
-  return text.toLowerCase().trim();
-}
-
 function safe(value: string | null | undefined) {
   return value || '';
 }
 
-function buildClientSummary(client: ClientRow, calls: CallLogRow[]) {
-  const latestCalls = calls.slice(0, 3);
+// Прости въпроси — отговаря директно от DB без OpenAI
+function trySimpleAnswer(question: string, clients: any[], callLogs: any[]): string | null {
+  const q = question.toLowerCase().trim();
 
-  const callsText =
-    latestCalls.length > 0
-      ? latestCalls
-          .map(
-            (call, index) =>
-              `Call ${index + 1} (${new Date(call.created_at).toLocaleDateString('en-GB')}): ` +
-              `${safe(call.call_result)} ${safe(call.notes)}`
-          )
-          .join('\n')
-      : 'No call history yet.';
-
-  return `
-Client: ${safe(client.client_name)}
-Phone: ${safe(client.phone_number)}
-Budget: ${safe(client.budget)}
-Interest/Notes: ${safe(client.notes)}
-Follow-up: ${safe(client.follow_up)}
-Status: ${safe(client.status)}
-Recent calls:
-${callsText}
-`.trim();
-}
-
-function answerQuestion(question: string, clients: ClientRow[], callLogs: CallLogRow[]) {
-  const q = normalize(question);
-
-  if (!clients.length) {
-    return 'No clients were found in the database yet.';
+  if (q.includes('колко клиента') || q.includes('how many clients')) {
+    return `Имаш ${clients.length} клиента в CRM-а.`;
   }
 
-  const callsByClientId = new Map<number, CallLogRow[]>();
-
-  for (const call of callLogs) {
-    if (!call.client_id) continue;
-    const existing = callsByClientId.get(call.client_id) || [];
-    existing.push(call);
-    callsByClientId.set(call.client_id, existing);
+  if (q.includes('активни') || q.includes('active clients')) {
+    const active = clients.filter(c => c.status === 'Active').length;
+    return `Активни клиенти: ${active}.`;
   }
 
-  for (const [clientId, calls] of callsByClientId.entries()) {
-    calls.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    callsByClientId.set(clientId, calls);
-  }
-
-  const matchedClient =
-    clients.find((client) => {
-      const name = safe(client.client_name).toLowerCase();
-      const phone = safe(client.phone_number).toLowerCase();
-      return q.includes(name) || (phone && q.includes(phone));
-    }) || null;
-
-  if (matchedClient) {
-    const clientCalls = callsByClientId.get(matchedClient.id) || [];
-    const latestCall = clientCalls[0];
-
-    if (q.includes('yesterday') || q.includes('last call') || q.includes('what did')) {
-      if (!latestCall) {
-        return `${safe(matchedClient.client_name)} has no call history yet.`;
-      }
-
-      return `${safe(matchedClient.client_name)} is currently in the CRM with budget ${
-        safe(matchedClient.budget) || 'not specified'
-      }, interest "${safe(matchedClient.notes) || 'not specified'}", and follow-up ${
-        safe(matchedClient.follow_up) || 'not scheduled'
-      }. Latest call summary: ${safe(latestCall.call_result) || 'No summary available'}. Coaching notes: ${
-        safe(latestCall.notes) || 'No coaching notes available'
-      }.`;
-    }
-
-    return buildClientSummary(matchedClient, clientCalls);
-  }
-
-  if (q.includes('follow-up') || q.includes('follow up')) {
+  if (q.includes('follow-up') || q.includes('follow up') || q.includes('фолоуъп')) {
     const followUps = clients
-      .filter((c) => c.follow_up)
-      .sort((a, b) => new Date(a.follow_up!).getTime() - new Date(b.follow_up!).getTime())
+      .filter(c => c.follow_up)
+      .sort((a, b) => new Date(a.follow_up).getTime() - new Date(b.follow_up).getTime())
       .slice(0, 5);
 
-    if (!followUps.length) {
-      return 'There are no scheduled follow-ups right now.';
-    }
+    if (!followUps.length) return 'Няма насрочени follow-up-и в момента.';
 
-    return `Here are the closest follow-ups:\n${followUps
-      .map(
-        (client) =>
-          `- ${safe(client.client_name)} on ${new Date(client.follow_up!).toLocaleDateString('en-GB')}`
-      )
+    return `Най-близките follow-up-и:\n${followUps
+      .map(c => `- ${safe(c.client_name)} на ${new Date(c.follow_up).toLocaleDateString('bg-BG')}`)
       .join('\n')}`;
   }
 
-  if (q.includes('serious') || q.includes('best lead') || q.includes('hot lead')) {
-    const ranked = clients
-      .map((client) => {
-        const calls = callsByClientId.get(client.id) || [];
-        let score = 0;
+  return null; // не е прост въпрос → праща към OpenAI
+}
 
-        if (safe(client.budget)) score += 1;
-        if (safe(client.notes)) score += 1;
-        if (safe(client.follow_up)) score += 1;
-        if (calls.length > 0) score += 2;
-        if (calls.some((c) => normalize(safe(c.call_result)).includes('viewing'))) score += 2;
-        if (calls.some((c) => normalize(safe(c.call_result)).includes('strong'))) score += 2;
-
-        return { client, score, calls };
-      })
-      .sort((a, b) => b.score - a.score);
-
-    const best = ranked[0];
-
-    if (!best) {
-      return 'No strong lead could be identified yet.';
-    }
-
-    return `Current strongest lead: ${safe(best.client.client_name)}. Budget: ${
-      safe(best.client.budget) || 'not specified'
-    }. Interest: ${safe(best.client.notes) || 'not specified'}. Calls on record: ${
-      best.calls.length
-    }. Suggested next step: ${
-      best.client.follow_up
-        ? `follow up on ${new Date(best.client.follow_up).toLocaleDateString('en-GB')}`
-        : 'schedule a concrete next step'
-    }.`;
+function buildContext(clients: any[], callLogs: any[]): string {
+  const callsByClient = new Map<number, any[]>();
+  for (const call of callLogs) {
+    if (!call.client_id) continue;
+    const existing = callsByClient.get(call.client_id) || [];
+    existing.push(call);
+    callsByClient.set(call.client_id, existing);
   }
 
-  if (q.includes('improve') || q.includes('coaching')) {
-    const recentCalls = [...callLogs]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 5);
+  const clientsText = clients.map(client => {
+    const calls = (callsByClient.get(client.id) || []).slice(0, 3);
+    const callsText = calls.length > 0
+      ? calls.map((c, i) =>
+          `  Разговор ${i + 1} (${new Date(c.created_at).toLocaleDateString('bg-BG')}): ${safe(c.call_result)} ${safe(c.notes)}`
+        ).join('\n')
+      : '  Няма записани разговори.';
 
-    if (!recentCalls.length) {
-      return 'There are no recent calls to analyze for coaching yet.';
-    }
+    return `Клиент: ${safe(client.client_name)}
+  Телефон: ${safe(client.phone_number)}
+  Бюджет: ${safe(client.budget)}
+  Интерес: ${safe(client.notes)}
+  Follow-up: ${safe(client.follow_up)}
+  Статус: ${safe(client.status)}
+${callsText}`;
+  }).join('\n\n');
 
-    const coachingText = recentCalls
-      .map((call) => safe(call.notes))
-      .filter(Boolean)
-      .join(' ');
-
-    if (!coachingText) {
-      return 'There are recent calls, but no coaching notes were found yet.';
-    }
-
-    return `Main coaching pattern from recent calls: ${coachingText}`;
-  }
-
-  const latestClients = clients.slice(0, 5);
-
-  return `I found ${clients.length} clients and ${callLogs.length} call logs in the CRM. Recent clients: ${latestClients
-    .map((c) => safe(c.client_name))
-    .filter(Boolean)
-    .join(', ')}. Ask me about a specific client, follow-ups, strongest leads, or coaching notes.`;
+  return clientsText;
 }
 
 export async function POST(req: NextRequest) {
@@ -194,12 +74,10 @@ export async function POST(req: NextRequest) {
     const question = body?.question?.trim();
 
     if (!question) {
-      return NextResponse.json(
-        { success: false, error: 'Question is required.' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'Въпросът е задължителен.' }, { status: 400 });
     }
 
+    // 1. Вземи данните от DB
     const { data: clients, error: clientsError } = await supabase
       .from('clients')
       .select('id, client_name, phone_number, budget, notes, follow_up, status')
@@ -207,10 +85,7 @@ export async function POST(req: NextRequest) {
       .limit(100);
 
     if (clientsError) {
-      return NextResponse.json(
-        { success: false, error: `Clients query failed: ${clientsError.message}` },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: clientsError.message }, { status: 500 });
     }
 
     const { data: callLogs, error: callsError } = await supabase
@@ -220,26 +95,64 @@ export async function POST(req: NextRequest) {
       .limit(300);
 
     if (callsError) {
-      return NextResponse.json(
-        { success: false, error: `Call logs query failed: ${callsError.message}` },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: callsError.message }, { status: 500 });
     }
 
-    const answer = answerQuestion(question, (clients as ClientRow[]) || [], (callLogs as CallLogRow[]) || []);
+    const clientList = (clients as any[]) || [];
+    const callList = (callLogs as any[]) || [];
 
-    return NextResponse.json({
-      success: true,
-      answer,
+    // 2. Провери дали е прост въпрос
+    const simpleAnswer = trySimpleAnswer(question, clientList, callList);
+    if (simpleAnswer) {
+      return NextResponse.json({ success: true, answer: simpleAnswer });
+    }
+
+    // 3. Сложен въпрос → OpenAI
+    const context = buildContext(clientList, callList);
+
+    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0.3,
+        max_tokens: 500,
+        messages: [
+          {
+            role: 'system',
+            content: `Ти си AI асистент за брокер на недвижими имоти. 
+Отговаряй кратко и конкретно на български език.
+Използвай само информацията от CRM данните по-долу.
+Ако нещо не е в данните — кажи го честно.
+
+CRM данни:
+${context}`,
+          },
+          {
+            role: 'user',
+            content: question,
+          },
+        ],
+      }),
     });
+
+    if (!openaiRes.ok) {
+      const err = await openaiRes.json();
+      return NextResponse.json({ success: false, error: `OpenAI грешка: ${err.error?.message}` }, { status: 500 });
+    }
+
+    const openaiData = await openaiRes.json();
+    const answer = openaiData.choices?.[0]?.message?.content || 'Няма отговор.';
+
+    return NextResponse.json({ success: true, answer });
+
   } catch (error) {
     console.error('ASSISTANT ROUTE ERROR:', error);
-
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown assistant route error',
-      },
+      { success: false, error: error instanceof Error ? error.message : 'Неизвестна грешка' },
       { status: 500 }
     );
   }
