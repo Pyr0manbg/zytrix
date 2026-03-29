@@ -70,6 +70,13 @@ formData.append('language', 'bg');
       body: formData,
     });
 
+        if (!openaiRes.ok) {
+    const errText = await openaiRes.text();
+    console.error('OPENAI ERROR:', errText);
+
+    throw new Error('OpenAI transcription failed');
+    }
+
     const transcription = await openaiRes.json();
 
     const text = transcription.text || '';
