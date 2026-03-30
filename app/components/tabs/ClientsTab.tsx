@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Badge, EmptyState, SectionCard } from '../UI';
 import type { Client } from '../../types';
 import { formatDisplayDate } from '../../utils';
+import { supabase } from '../../../lib/supabase';
 
 type ClientsTabProps = {
   clients: Client[];
@@ -30,6 +31,44 @@ export default function ClientsTab({
   query,
   setQuery,
 }: ClientsTabProps) {
+
+  const [leadStatus, setLeadStatus] = useState('active');
+  const [showDealModal, setShowDealModal] = useState(false);
+
+    useEffect(() => {
+      if (selectedClient) {
+        setLeadStatus(
+          selectedClient.status?.toLowerCase() === 'inactive'
+            ? 'inactive'
+            : 'active'
+        );
+      }
+    }, [selectedClient]);
+
+  const handleStatusSave = async () => {
+    if (!selectedClient) return;
+
+    if (leadStatus === 'inactive') {
+      setShowDealModal(true);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('buyer_leads')
+      .update({
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('client_id', selectedClient.id);
+
+    if (error) {
+      console.error('Error saving lead status:', error);
+      return;
+    }
+
+    console.log('Lead set to active');
+  };
+
   return (
     <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
       <SectionCard
@@ -105,7 +144,34 @@ export default function ClientsTab({
             </button>
           }
         >
+            <div className="mb-5 rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm text-[#94A3B8]">Lead status</p>
+                <p className="mt-1 font-semibold text-white">
+                  {leadStatus === 'active' ? 'Активен' : 'Неактивен'}
+                </p>
+              </div>
 
+              <div className="flex items-center gap-2">
+                <select
+                  value={leadStatus}
+                  onChange={(e) => setLeadStatus(e.target.value)}
+                  className="rounded-2xl border border-[#334155] bg-[#111827] px-3 py-2 text-sm text-white outline-none"
+                >
+                  <option value="active">Активен</option>
+                  <option value="inactive">Неактивен</option>
+                </select>
+
+                <button
+                  onClick={handleStatusSave}
+                  className="rounded-2xl border border-[#334155] px-4 py-2 text-sm font-medium text-white hover:bg-[#172033]"
+                >
+                  Запази
+                </button>
+              </div>
+            </div>
+          </div>
           <div className="mb-5 grid gap-3 md:grid-cols-3">
             <div className="rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4 overflow-hidden">
               <p className="text-sm text-[#94A3B8]">Budget</p>
@@ -168,6 +234,62 @@ export default function ClientsTab({
           />
         </SectionCard>
       )}
+
+        {showDealModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="w-full max-w-md rounded-3xl bg-[#0F172A] p-6 border border-[#1E293B]">
+      <h2 className="text-lg font-semibold text-white mb-4">
+        Имаше ли сделка?
+      </h2>
+
+      <div className="flex gap-3">
+        <button
+          onClick={async () => {
+            await supabase
+              .from('buyer_leads')
+              .update({
+                status: 'inactive',
+                deal_outcome: 'won',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('client_id', selectedClient?.id);
+
+            setShowDealModal(false);
+          }}
+          className="flex-1 rounded-2xl bg-green-600 px-4 py-2 text-white font-medium"
+        >
+          Да
+        </button>
+
+        <button
+          onClick={async () => {
+            await supabase
+              .from('buyer_leads')
+              .update({
+                status: 'inactive',
+                deal_outcome: 'lost',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('client_id', selectedClient?.id);
+
+            setShowDealModal(false);
+          }}
+          className="flex-1 rounded-2xl bg-red-600 px-4 py-2 text-white font-medium"
+        >
+          Не
+        </button>
+      </div>
+
+      <button
+        onClick={() => setShowDealModal(false)}
+        className="mt-4 w-full text-sm text-[#94A3B8]"
+      >
+        Отказ
+      </button>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }
