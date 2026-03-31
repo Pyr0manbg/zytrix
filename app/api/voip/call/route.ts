@@ -100,6 +100,18 @@ export async function POST(req: NextRequest) {
       zadarmaSecret
     );
 
+          console.log('ZADARMA DEBUG', {
+        env: process.env.NODE_ENV,
+        keySuffix: zadarmaKey ? zadarmaKey.slice(-6) : null,
+        secretLength: zadarmaSecret ? zadarmaSecret.length : 0,
+        sip: zadarmaSip,
+        callerId: zadarmaCallerId || null,
+        phoneNumber,
+        methodPath,
+        queryString,
+        authorizationPrefix: authorization.slice(0, 12),
+      });
+
     const response = await fetch(
       `https://api.zadarma.com${methodPath}?${queryString}`,
       {
@@ -113,6 +125,7 @@ export async function POST(req: NextRequest) {
     );
 
     const rawText = await response.text();
+    console.log('ZADARMA RAW RESPONSE', rawText);
 
     let parsedResponse: unknown = null;
     try {
