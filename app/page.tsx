@@ -223,6 +223,20 @@ const tasks = useMemo<Task[]>(() => {
   return data;
 }
 
+function normalizePhone(phone: string) {
+  if (!phone) return '';
+
+  let cleaned = phone.replace(/[^\d+]/g, '');
+
+  if (cleaned.startsWith('08')) {
+    cleaned = '+359' + cleaned.slice(1);
+  } else if (cleaned.startsWith('359')) {
+    cleaned = '+' + cleaned;
+  }
+
+  return cleaned;
+}
+
   async function startManualVoipCall() {
     if (!manualCallPhone.trim()) return;
 
@@ -232,7 +246,7 @@ const tasks = useMemo<Task[]>(() => {
       const response = await fetch('/api/voip/call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: manualCallPhone.trim() }),
+        body: JSON.stringify({ phoneNumber: normalizePhone(manualCallPhone.trim()) }),
       });
 
       const result = await response.json();
@@ -802,35 +816,35 @@ async function toggleTaskDone(id: number, currentDone: boolean) {
           onSave={addClient}
         />
 
-        <CallConfirmModal
-          open={showCallConfirmModal}
-          selectedClient={selectedClient}
-          onClose={() => setShowCallConfirmModal(false)}
-          onConfirm={async () => {
-            if (!selectedClient) return;
+       <CallConfirmModal
+        open={showCallConfirmModal}
+        selectedClient={selectedClient}
+        onClose={() => setShowCallConfirmModal(false)}
+        onConfirm={async () => {
+          if (!selectedClient) return;
 
-            const response = await fetch('/api/voip', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                phoneNumber: selectedClient.phone,
-              }),
-            });
+          const response = await fetch('/api/voip/call', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              phoneNumber: normalizePhone(selectedClient.phone),
+            }),
+          });
 
-            const result = await response.json();
+    const result = await response.json();
 
-            if (!response.ok || !result.success) {
-              alert(result.error || 'Failed to start call.');
-              return;
-            }
+    if (!response.ok || !result.success) {
+      alert(result.error || 'Failed to start call.');
+      return;
+    }
 
-            await logCall(selectedClient.id);
-            await loadClientCalls(selectedClient.id);
-            setShowCallConfirmModal(false);
-          }}
-        />
+    await logCall(selectedClient.id);
+    await loadClientCalls(selectedClient.id);
+    setShowCallConfirmModal(false);
+  }}
+/>
 
         <NewCallModal
           open={showNewCallModal}
