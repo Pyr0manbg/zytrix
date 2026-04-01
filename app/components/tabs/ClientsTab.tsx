@@ -13,6 +13,7 @@ type ClientsTabProps = {
   selectedClient: Client | null;
   selectedClientId: string;
   setSelectedClientId: (id: string) => void;
+  setClients: React.Dispatch<React.SetStateAction<Client[]>>;
   setShowAddClientModal: (v: boolean) => void;
   setShowCallConfirmModal: (v: boolean) => void;
   query: string;
@@ -26,6 +27,7 @@ export default function ClientsTab({
   selectedClient,
   selectedClientId,
   setSelectedClientId,
+  setClients,
   setShowAddClientModal,
   setShowCallConfirmModal,
   query,
@@ -40,12 +42,53 @@ export default function ClientsTab({
   const [detailsLeadStatus, setDetailsLeadStatus] = useState('active');
   const [showDealOutcomeModal, setShowDealOutcomeModal] = useState(false);
   const [notes, setNotes] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
 
 useEffect(() => {
   if (selectedClient) {
-    setNotes(selectedClient.interest || '');
+    setNotes(selectedClient.brokerNotes || '');
   }
 }, [selectedClient]);
+
+useEffect(() => {
+  if (!selectedClient) return;
+
+  const timeout = setTimeout(async () => {
+    setNotesSaving(true);
+    setNotesSaved(false);
+
+    const { error } = await supabase
+      .from('clients')
+      .update({
+        broker_notes: notes,
+      })
+      .eq('id', Number(selectedClient.id));
+
+    if (error) {
+      console.error('AUTO SAVE NOTES ERROR:', error);
+      setNotesSaving(false);
+      return;
+    }
+
+    // обновяваме локално
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id === selectedClient.id
+          ? { ...client, brokerNotes: notes }
+          : client
+      )
+    );
+
+    setNotesSaving(false);
+    setNotesSaved(true);
+
+    // reset на "saved" след малко
+    setTimeout(() => setNotesSaved(false), 1500);
+  }, 1000); // ⬅️ debounce 1 секунда
+
+  return () => clearTimeout(timeout);
+}, [notes, selectedClient]);
 
 
 const handleSaveNotes = async () => {
@@ -54,7 +97,7 @@ const handleSaveNotes = async () => {
   const { error } = await supabase
     .from('clients')
     .update({
-      notes: notes,
+      broker_notes: notes,
     })
     .eq('id', Number(selectedClient.id));
 
@@ -63,12 +106,16 @@ const handleSaveNotes = async () => {
     return;
   }
 
+  setClients((prev) =>
+    prev.map((client) =>
+      client.id === selectedClient.id
+        ? { ...client, brokerNotes: notes }
+        : client
+    )
+  );
+
   console.log('Notes saved');
-
-  // обновяваме локално клиента
-  setSelectedClientId(selectedClient.id);
 };
-
   const handleOpenDetails = async (clientId: string) => {
   setBuyerLeadLoading(true);
   setShowDetailsModal(true);
@@ -106,11 +153,6 @@ const handleSaveNotes = async () => {
       }
     }, [selectedClient]);
 
-    useEffect(() => {
-  if (selectedClient) {
-    setNotes(selectedClient.interest || '');
-  }
-}, [selectedClient]);
 
   const handleStatusSave = async () => {
     if (!selectedClient) return;
@@ -303,12 +345,6 @@ const handleNotesChange = (value: string) => {
               className="w-full min-h-[100px] rounded-2xl border border-[#334155] bg-[#111827] px-3 py-2 text-sm text-white outline-none resize-none"
             />
 
-            <button
-              onClick={handleSaveNotes}
-              className="mt-3 rounded-2xl border border-[#334155] px-4 py-2 text-sm text-white hover:bg-[#172033]"
-            >
-              Save notes
-            </button>
           </div>
 
           <div className="space-y-4">

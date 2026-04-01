@@ -19,6 +19,7 @@ export type Client = {
   phone: string;
   status: 'Active' | 'Inactive';
   budget: string;
+  brokerNotes?: string;
   interest: string;
   nextStep: string; // follow-up date string (YYYY-MM-DD or ISO)
   calls: CallItem[];

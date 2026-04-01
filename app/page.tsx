@@ -298,16 +298,17 @@ function normalizePhone(phone: string) {
       return;
     }
 
-    const mappedClients: Client[] = (data || []).map((item: any) => ({
-      id: String(item.id),
-      name: item.client_name || '',
-      phone: item.phone_number || '',
-      status: item.status === 'Inactive' ? 'Inactive' : 'Active',
-      budget: item.budget || '',
-      interest: item.notes || '',
-      nextStep: item.follow_up || '',
-      calls: [],
-    }));
+const mappedClients: Client[] = (data || []).map((item: any) => ({
+  id: String(item.id),
+  name: item.client_name || '',
+  phone: item.phone_number || '',
+  status: item.status === 'Inactive' ? 'Inactive' : 'Active',
+  budget: item.budget || '',
+  interest: item.notes || '',
+  brokerNotes: item.broker_notes || '',
+  nextStep: item.follow_up || '',
+  calls: [],
+}));
 
     setClients(mappedClients);
 
@@ -745,6 +746,7 @@ async function toggleTaskDone(id: number, currentDone: boolean) {
           {activeTab === 'clients' && (
             <ClientsTab
               clients={clients}
+              setClients={setClients}
               filteredClients={filteredClients}
               clientsLoading={clientsLoading}
               selectedClient={selectedClient}
