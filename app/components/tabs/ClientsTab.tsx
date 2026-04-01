@@ -39,6 +39,35 @@ export default function ClientsTab({
   const [buyerLeadLoading, setBuyerLeadLoading] = useState(false);
   const [detailsLeadStatus, setDetailsLeadStatus] = useState('active');
   const [showDealOutcomeModal, setShowDealOutcomeModal] = useState(false);
+  const [notes, setNotes] = useState('');
+
+useEffect(() => {
+  if (selectedClient) {
+    setNotes(selectedClient.interest || '');
+  }
+}, [selectedClient]);
+
+
+const handleSaveNotes = async () => {
+  if (!selectedClient) return;
+
+  const { error } = await supabase
+    .from('clients')
+    .update({
+      notes: notes,
+    })
+    .eq('id', Number(selectedClient.id));
+
+  if (error) {
+    console.error('SAVE NOTES ERROR:', error);
+    return;
+  }
+
+  console.log('Notes saved');
+
+  // обновяваме локално клиента
+  setSelectedClientId(selectedClient.id);
+};
 
   const handleOpenDetails = async (clientId: string) => {
   setBuyerLeadLoading(true);
@@ -76,6 +105,12 @@ export default function ClientsTab({
         );
       }
     }, [selectedClient]);
+
+    useEffect(() => {
+  if (selectedClient) {
+    setNotes(selectedClient.interest || '');
+  }
+}, [selectedClient]);
 
   const handleStatusSave = async () => {
     if (!selectedClient) return;
@@ -134,6 +169,12 @@ export default function ClientsTab({
       : prev
   );
 };
+
+const handleNotesChange = (value: string) => {
+  setNotes(value);
+};
+
+
 
   return (
     <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
@@ -250,28 +291,24 @@ export default function ClientsTab({
               </div>
             </div>
           </div>
-          <div className="mb-5 grid gap-3 md:grid-cols-3">
-            <div className="rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4 overflow-hidden">
-              <p className="text-sm text-[#94A3B8]">Budget</p>
-              <p className="mt-1 font-semibold text-white truncate">
-                {selectedClient.budget || '—'}
-              </p>
-            </div>
 
-            <div className="rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4 overflow-hidden">
-              <p className="text-sm text-[#94A3B8]">Interest</p>
-              <p className="mt-1 font-semibold text-white line-clamp-2">
-                {selectedClient.interest || '—'}
-              </p>
-            </div>
 
-            <div className="rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4 overflow-hidden">
-              <p className="text-sm text-[#94A3B8]">Next step</p>
-              <p className="mt-1 font-semibold text-white truncate">
-                {formatDisplayDate(selectedClient.nextStep)}
-              </p>
-            </div>
+                    <div className="mb-5 rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4">
+            <p className="text-sm text-[#94A3B8] mb-2">Broker notes</p>
 
+            <textarea
+              value={notes || ''}
+              onChange={(e) => handleNotesChange(e.target.value)}
+              placeholder="Add your notes about this client..."
+              className="w-full min-h-[100px] rounded-2xl border border-[#334155] bg-[#111827] px-3 py-2 text-sm text-white outline-none resize-none"
+            />
+
+            <button
+              onClick={handleSaveNotes}
+              className="mt-3 rounded-2xl border border-[#334155] px-4 py-2 text-sm text-white hover:bg-[#172033]"
+            >
+              Save notes
+            </button>
           </div>
 
           <div className="space-y-4">
