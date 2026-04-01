@@ -429,13 +429,8 @@ setLeadStatus('inactive');
           </div>
 
           <div className="rounded-2xl border border-[#1E293B] bg-[#111827] p-4">
-            <p className="text-sm text-[#94A3B8]">Budget min</p>
-            <p className="mt-1 text-white">{buyerLeadDetails.budget_min_eur || '—'}</p>
-          </div>
-
-          <div className="rounded-2xl border border-[#1E293B] bg-[#111827] p-4">
-            <p className="text-sm text-[#94A3B8]">Budget max</p>
-            <p className="mt-1 text-white">{buyerLeadDetails.budget_max_eur || '—'}</p>
+            <p className="text-sm text-[#94A3B8]">Budget</p>
+            <p className="mt-1 text-white">{buyerLeadDetails.budget_eur || '—'}</p>
           </div>
 
           <div className="rounded-2xl border border-[#1E293B] bg-[#111827] p-4">
