@@ -523,6 +523,8 @@ setLeadStatus('inactive');
             <p className="mt-1 text-white">{buyerLeadDetails.motivation_score ?? '—'}</p>
           </div>
 
+
+
           <div className="rounded-2xl border border-[#1E293B] bg-[#111827] p-4 md:col-span-2">
             <p className="text-sm text-[#94A3B8]">Target locations</p>
             <p className="mt-1 text-white break-words">
@@ -538,6 +540,13 @@ setLeadStatus('inactive');
               {buyerLeadDetails.requirements
                 ? JSON.stringify(buyerLeadDetails.requirements, null, 2)
                 : '—'}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[#1E293B] bg-[#111827] p-4 md:col-span-2">
+            <p className="text-sm text-[#94A3B8]">Next action</p>
+            <p className="mt-1 text-white break-words">
+              {buyerLeadDetails.next_step || '—'}
             </p>
           </div>
 
