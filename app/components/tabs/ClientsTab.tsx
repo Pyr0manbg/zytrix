@@ -262,7 +262,7 @@ const handleNotesChange = (value: string) => {
                     : 'border-[#1E293B] bg-[#111827] hover:bg-[#172033]'
                 }`}
               >
-               <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-medium text-white">{client.name}</p>
                     <p className="text-sm text-[#94A3B8]">{client.phone}</p>
@@ -509,6 +509,13 @@ setLeadStatus('inactive');
           <div className="rounded-2xl border border-[#1E293B] bg-[#111827] p-4">
             <p className="text-sm text-[#94A3B8]">Property type</p>
             <p className="mt-1 text-white">{buyerLeadDetails.property_type || '—'}</p>
+          </div>
+
+          <div className="rounded-2xl border border-[#1E293B] bg-[#111827] p-4">
+            <p className="text-sm text-[#94A3B8]">Property details</p>
+            <p className="mt-1 text-white">
+              {buyerLeadDetails.property_details || '—'}
+            </p>
           </div>
 
           <div className="rounded-2xl border border-[#1E293B] bg-[#111827] p-4">
