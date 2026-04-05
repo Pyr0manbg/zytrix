@@ -116,6 +116,9 @@ const handleSaveNotes = async () => {
 
   console.log('Notes saved');
 };
+const [isEditingName, setIsEditingName] = useState(false);
+const [editedName, setEditedName] = useState('');
+
   const handleOpenDetails = async (clientId: string) => {
   setBuyerLeadLoading(true);
   setShowDetailsModal(true);
@@ -293,9 +296,40 @@ const handleNotesChange = (value: string) => {
       </SectionCard>
 
       {selectedClient ? (
-        <SectionCard
-          title={selectedClient.name}
-          subtitle={selectedClient.phone}
+<SectionCard
+  title={
+    isEditingName ? (
+      <input
+        autoFocus
+        value={editedName}
+        onChange={(e) => setEditedName(e.target.value)}
+        onBlur={async () => {
+          setIsEditingName(false);
+          if (!editedName.trim() || editedName === selectedClient.name) return;
+          await supabase
+            .from('clients')
+            .update({ client_name: editedName.trim() })
+            .eq('id', Number(selectedClient.id));
+          setClients((prev) =>
+            prev.map((c) =>
+              c.id === selectedClient.id ? { ...c, name: editedName.trim() } : c
+            )
+          );
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        className="bg-transparent border-b border-[#38BDF8] text-white text-lg font-semibold outline-none w-full"
+      />
+    ) : (
+      <span
+        onClick={() => { setIsEditingName(true); setEditedName(selectedClient.name); }}
+        className="cursor-pointer hover:text-[#38BDF8] transition"
+        title="Click to edit"
+      >
+        {selectedClient.name}
+      </span>
+    )
+  }
+  subtitle={selectedClient.phone}
           right={
             <button
               onClick={() => setShowCallConfirmModal(true)}
