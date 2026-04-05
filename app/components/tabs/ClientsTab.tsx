@@ -119,7 +119,7 @@ const handleSaveNotes = async () => {
 const [isEditingName, setIsEditingName] = useState(false);
 const [editedName, setEditedName] = useState('');
 
-  const handleOpenDetails = async (clientId: string) => {
+const handleOpenDetails = async (clientId: string) => {
   setBuyerLeadLoading(true);
   setShowDetailsModal(true);
 
@@ -138,10 +138,22 @@ const [editedName, setEditedName] = useState('');
     return;
   }
 
-  setBuyerLeadDetails(data || null);
+  const { data: lastCall } = await supabase
+    .from('calls')
+    .select('ai_coaching, coaching')
+    .eq('client_id', Number(clientId))
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  setBuyerLeadDetails({
+    ...(data || {}),
+    coaching: lastCall?.ai_coaching || lastCall?.coaching || null,
+  });
+
   setDetailsLeadStatus(
-  data?.status?.toLowerCase() === 'inactive' ? 'inactive' : 'active'
-);
+    data?.status?.toLowerCase() === 'inactive' ? 'inactive' : 'active'
+  );
   setBuyerLeadLoading(false);
 };
 
@@ -604,11 +616,9 @@ setLeadStatus('inactive');
           </div>
 
           <div className="rounded-2xl border border-[#1E293B] bg-[#111827] p-4 md:col-span-2">
-            <p className="text-sm text-[#94A3B8]">Requirements</p>
-            <p className="mt-1 text-white break-words">
-              {buyerLeadDetails.requirements
-                ? JSON.stringify(buyerLeadDetails.requirements, null, 2)
-                : '—'}
+            <p className="text-sm text-[#94A3B8]">Обща оценка на разговора</p>
+            <p className="mt-1 text-white whitespace-pre-wrap">
+              {buyerLeadDetails.coaching || '—'}
             </p>
           </div>
 

@@ -420,7 +420,7 @@ const mappedClients: Client[] = (data || []).map((item: any) => ({
 
   async function loadClientCalls(clientId: string) {
     const { data, error } = await supabase
-      .from('call_logs')
+      .from('calls')
       .select('*')
       .eq('client_id', Number(clientId))
       .order('created_at', { ascending: false });
