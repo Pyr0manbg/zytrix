@@ -348,6 +348,7 @@ const mappedClients: Client[] = (data || []).map((item: any) => ({
         notes,
         created_at,
         broker_id,
+        agency_id,
         client_id,
         clients (
           client_name
