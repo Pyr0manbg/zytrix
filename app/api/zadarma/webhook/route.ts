@@ -115,6 +115,19 @@ const toNumber =
 if (fromNumber) updateData.from_number = fromNumber;
 if (toNumber) updateData.to_number = toNumber;
 
+if (toNumber) {
+  const { data: broker } = await supabaseAdmin
+    .from('brokers')
+    .select('id, agency_id')
+    .eq('zadarma_number', toNumber)
+    .maybeSingle();
+
+  if (broker) {
+    updateData.broker_id = broker.id;
+    updateData.agency_id = broker.agency_id;
+  }
+}
+
 console.log('📞 Parsed numbers:', {
   fromNumber,
   toNumber,
