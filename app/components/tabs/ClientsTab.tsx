@@ -330,14 +330,49 @@ const handleNotesChange = (value: string) => {
     )
   }
   subtitle={selectedClient.phone}
-          right={
-            <button
-              onClick={() => setShowCallConfirmModal(true)}
-              className="rounded-2xl bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#38BDF8] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-            >
-              Call client
-            </button>
-          }
+right={
+  <div className="flex items-center gap-2">
+    <button
+
+onClick={async () => {
+  if (!confirm('Сигурен ли си, че искаш да изтриеш този клиент?')) return;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  console.log('Session:', session?.user?.id);
+
+  await supabase
+    .from('call_logs')
+    .delete()
+    .eq('client_id', Number(selectedClient.id));
+
+  await supabase
+    .from('buyer_leads')
+    .delete()
+    .eq('client_id', Number(selectedClient.id));
+
+  const { error } = await supabase
+    .from('clients')
+    .delete()
+    .eq('id', Number(selectedClient.id));
+
+  if (error) { console.error(error); return; }
+
+  setClients((prev) => prev.filter((c) => String(c.id) !== String(selectedClient.id)));
+  setSelectedClientId('');
+}}
+
+      className="rounded-2xl border border-red-500 px-4 py-2 text-sm font-semibold text-red-400 hover:bg-red-500/10"
+    >
+      Изтрий
+    </button>
+    <button
+      onClick={() => setShowCallConfirmModal(true)}
+      className="rounded-2xl bg-gradient-to-r from-[#1D4ED8] via-[#2563EB] to-[#38BDF8] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+    >
+      Call client
+    </button>
+  </div>
+}
         >
             <div className="mb-5 rounded-3xl border border-[#1E293B] bg-[#0F172A] p-4">
             <div className="flex items-center justify-between gap-3">
