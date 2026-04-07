@@ -34,6 +34,7 @@ export default function ClientsTab({
   setQuery,
 }: ClientsTabProps) {
 
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [leadStatus, setLeadStatus] = useState('active');
   const [showDealModal, setShowDealModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -235,6 +236,8 @@ const handleNotesChange = (value: string) => {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      {/* Client list — hidden on mobile when detail is open */}
+      <div className={mobileDetailOpen ? 'hidden lg:block' : 'block'}>
       <SectionCard
         title="Clients"
         subtitle="Search and open a client profile instantly."
@@ -270,7 +273,7 @@ const handleNotesChange = (value: string) => {
             filteredClients.map((client) => (
               <button
                 key={client.id}
-                onClick={() => setSelectedClientId(client.id)}
+                onClick={() => { setSelectedClientId(client.id); setMobileDetailOpen(true); }}
                 className={`w-full rounded-3xl border p-4 text-left transition ${
                   selectedClient?.id === client.id
                     ? 'border-[#38BDF8] bg-[#172554]'
@@ -306,6 +309,21 @@ const handleNotesChange = (value: string) => {
           )}
         </div>
       </SectionCard>
+      </div>
+
+      {/* Client detail — hidden on mobile when list is shown */}
+      <div className={mobileDetailOpen ? 'block' : 'hidden lg:block'}>
+        {mobileDetailOpen && (
+          <button
+            onClick={() => setMobileDetailOpen(false)}
+            className="mb-3 flex items-center gap-1.5 text-sm text-[#94A3B8] lg:hidden"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+              <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            Back to clients
+          </button>
+        )}
 
       {selectedClient ? (
 <SectionCard
@@ -635,6 +653,7 @@ setLeadStatus('inactive');
   </div>
 )}
 
+      </div>
     </div>
   );
 }

@@ -19,23 +19,23 @@ export default function BrandHeader({
 }: BrandHeaderProps) {
   if (align === 'hero') {
     return (
-      <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-900/20">
+      <div className="flex items-center gap-3 sm:items-start sm:gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-900/20 sm:h-12 sm:w-12">
           {logo ?? <span className="text-base font-bold tracking-wide">Z</span>}
         </div>
 
         <div className="min-w-0">
           {badge ? (
-            <div className="mb-2 inline-flex rounded-full bg-[#172554] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#93C5FD]">
+            <div className="mb-1.5 hidden rounded-full bg-[#172554] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#93C5FD] sm:inline-flex">
               {badge}
             </div>
           ) : null}
 
-          <h1 className="truncate text-3xl font-semibold leading-tight text-white">
+          <h1 className="text-xl font-semibold leading-tight text-white sm:text-3xl">
             {title}
           </h1>
 
-          <p className="mt-2 max-w-2xl text-sm text-slate-400">
+          <p className="mt-1 hidden max-w-2xl text-sm text-slate-400 sm:block sm:mt-2">
             {subtitle}
           </p>
         </div>

@@ -19,7 +19,7 @@ export default function StatsGrid({
 }: StatsGridProps) {
   const t = createTranslator('bg');
   return (
-    <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
       <StatCard
         label={t('todayTasks')}
         value={upcomingTasks}

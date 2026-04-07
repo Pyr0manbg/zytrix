@@ -92,13 +92,22 @@ export default function CalendarTab({
           </button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-7">
-          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+        <div className="grid grid-cols-7 gap-0.5 sm:gap-2">
+          {[
+            { full: 'Mon', short: 'M' },
+            { full: 'Tue', short: 'T' },
+            { full: 'Wed', short: 'W' },
+            { full: 'Thu', short: 'T' },
+            { full: 'Fri', short: 'F' },
+            { full: 'Sat', short: 'S' },
+            { full: 'Sun', short: 'S' },
+          ].map(({ full, short }) => (
             <div
-              key={day}
-              className="rounded-2xl bg-[#172554] px-3 py-2 text-center text-sm font-semibold text-[#BFDBFE]"
+              key={full}
+              className="rounded-lg bg-[#172554] px-1 py-1.5 text-center text-[10px] font-semibold text-[#BFDBFE] sm:rounded-2xl sm:px-3 sm:py-2 sm:text-sm"
             >
-              {day}
+              <span className="sm:hidden">{short}</span>
+              <span className="hidden sm:inline">{full}</span>
             </div>
           ))}
 
@@ -113,28 +122,29 @@ export default function CalendarTab({
               <button
                 key={`${dateKey}-${index}`}
                 onClick={() => setSelectedDate(date)}
-                className={`min-h-[110px] rounded-3xl border p-3 text-left transition ${
+                className={`min-h-[44px] rounded-xl border p-1 text-left transition sm:min-h-[110px] sm:rounded-3xl sm:p-3 ${
                   isSelected
                     ? 'border-[#38BDF8] bg-[#172554]'
                     : 'border-[#1E293B] bg-[#0F172A] hover:bg-[#172033]'
-                }`}
+                } ${isCurrentDay ? 'ring-1 ring-blue-400/50 sm:ring-0' : ''}`}
               >
-                <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-start justify-between gap-0.5">
                   <span
-                    className={`text-sm font-semibold ${
+                    className={`text-xs font-semibold sm:text-sm ${
                       isCurrentMonth ? 'text-[#E5E7EB]' : 'text-[#475569]'
-                    }`}
+                    } ${isCurrentDay ? 'text-blue-400' : ''}`}
                   >
                     {date.getDate()}
                   </span>
                   {isCurrentDay ? (
-                    <span className="rounded-full bg-gradient-to-r from-[#1D4ED8] to-[#38BDF8] px-2 py-0.5 text-[10px] font-bold text-white">
+                    <span className="hidden rounded-full bg-gradient-to-r from-[#1D4ED8] to-[#38BDF8] px-2 py-0.5 text-[10px] font-bold text-white sm:inline">
                       TODAY
                     </span>
                   ) : null}
                 </div>
 
-                <div className="space-y-1">
+                {/* Event chips — desktop */}
+                <div className="mt-1 hidden space-y-1 sm:block">
                   {dayEvents.slice(0, 2).map((event) => (
                     <div
                       key={event.id}
@@ -147,6 +157,13 @@ export default function CalendarTab({
                     <div className="text-[10px] text-[#93C5FD]">+{dayEvents.length - 2} more</div>
                   ) : null}
                 </div>
+
+                {/* Event dot — mobile */}
+                {dayEvents.length > 0 ? (
+                  <div className="mt-0.5 flex justify-center sm:hidden">
+                    <div className="h-1 w-1 rounded-full bg-blue-400" />
+                  </div>
+                ) : null}
               </button>
             );
           })}
