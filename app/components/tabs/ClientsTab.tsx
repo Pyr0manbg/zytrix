@@ -271,28 +271,28 @@ const handleNotesChange = (value: string) => {
             />
           ) : (
             filteredClients.map((client) => (
-              <button
+              <div
                 key={client.id}
-                onClick={() => { setSelectedClientId(client.id); setMobileDetailOpen(true); }}
                 className={`w-full rounded-3xl border p-4 text-left transition ${
                   selectedClient?.id === client.id
                     ? 'border-[#38BDF8] bg-[#172554]'
                     : 'border-[#1E293B] bg-[#111827] hover:bg-[#172033]'
                 }`}
               >
-              <div className="flex items-center justify-between gap-3">
-                  <div>
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedClientId(client.id); setMobileDetailOpen(true); }}
+                    className="min-w-0 flex-1 text-left"
+                  >
                     <p className="font-medium text-white">{client.name}</p>
                     <p className="text-sm text-[#94A3B8]">{client.phone}</p>
-                  </div>
+                  </button>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenDetails(client.id);
-                      }}
+                      onClick={() => handleOpenDetails(client.id)}
                       className="rounded-2xl border border-[#334155] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#172033]"
                     >
                       Details
@@ -304,7 +304,7 @@ const handleNotesChange = (value: string) => {
                     />
                   </div>
                 </div>
-              </button>
+              </div>
             ))
           )}
         </div>
@@ -314,15 +314,17 @@ const handleNotesChange = (value: string) => {
       {/* Client detail — hidden on mobile when list is shown */}
       <div className={mobileDetailOpen ? 'block' : 'hidden lg:block'}>
         {mobileDetailOpen && (
-          <button
-            onClick={() => setMobileDetailOpen(false)}
-            className="mb-3 flex items-center gap-1.5 text-sm text-[#94A3B8] lg:hidden"
-          >
-            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-              <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
-            Back to clients
-          </button>
+          <div className="sticky top-0 z-10 -mx-1 mb-3 bg-[#08111F] px-1 pb-2 pt-1 lg:hidden">
+            <button
+              onClick={() => setMobileDetailOpen(false)}
+              className="flex items-center gap-1.5 rounded-xl border border-[#1E293B] bg-[#111827] px-3 py-2 text-sm text-[#94A3B8]"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              Back to clients
+            </button>
+          </div>
         )}
 
       {selectedClient ? (
@@ -568,9 +570,18 @@ setLeadStatus('inactive');
 )}
 
     {showDetailsModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-    <div className="w-full max-w-2xl rounded-3xl border border-[#1E293B] bg-[#0F172A] p-6">
-      
+  <div
+    className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-0 sm:items-center sm:px-4"
+    onClick={() => setShowDetailsModal(false)}
+  >
+    <div
+      className="w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-[#1E293B] bg-[#0F172A] p-5 sm:max-h-[90dvh] sm:rounded-3xl sm:p-6"
+      style={{ maxHeight: '90dvh' }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* drag handle on mobile */}
+      <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#334155] sm:hidden" />
+
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">Client Details</h2>
         <button
