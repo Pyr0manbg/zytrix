@@ -18,9 +18,10 @@ export const metadata: Metadata = {
   description: 'AI-powered workflow assistant for real estate brokers.',
   applicationName: 'Zytrix',
   icons: {
-    icon: '/icon-192x192.png',
-    apple: '/icon-192x192.png',
-  },
+  icon: '/favicon.ico',         // браузър таб
+  apple: '/icon-192x192.png',   // iPhone
+  // Android взима icon-192x192.png автоматично през manifest.json
+},
 };
 
 export const viewport = {
