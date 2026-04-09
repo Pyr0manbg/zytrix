@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthUser } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,10 +8,7 @@ function buildZadarmaAuth(method: string, params: Record<string, string>) {
   const key = process.env.ZADARMA_KEY!;
   const secret = process.env.ZADARMA_SECRET!;
 
-  const sortedEntries = Object.entries(params).sort(([a], [b]) =>
-    a.localeCompare(b)
-  );
-
+  const sortedEntries = Object.entries(params).sort(([a], [b]) => a.localeCompare(b));
   const paramsStr = new URLSearchParams(sortedEntries).toString();
   const md5 = crypto.createHash('md5').update(paramsStr).digest('hex');
 
@@ -19,40 +17,25 @@ function buildZadarmaAuth(method: string, params: Record<string, string>) {
     .update(method + paramsStr + md5)
     .digest('base64');
 
-  return {
-    authHeader: `${key}:${signature}`,
-    paramsStr,
-  };
+  return { authHeader: `${key}:${signature}`, paramsStr };
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
+  const user = await getAuthUser(req);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const method = '/v1/info/balance/';
-  const params = {};
+  const { authHeader, paramsStr } = buildZadarmaAuth(method, {});
 
-  const { authHeader, paramsStr } = buildZadarmaAuth(method, params);
-
-  const url = `https://api.zadarma.com${method}${
-    paramsStr ? `?${paramsStr}` : ''
-  }`;
+  const url = `https://api.zadarma.com${method}${paramsStr ? `?${paramsStr}` : ''}`;
 
   const res = await fetch(url, {
-    headers: {
-      Authorization: authHeader,
-    },
+    headers: { Authorization: authHeader },
   });
 
   const text = await res.text();
 
-  return new Response(
-    JSON.stringify(
-      {
-        status: res.status,
-        authHeaderPrefix: authHeader.split(':')[0],
-        body: text,
-      },
-      null,
-      2
-    ),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
+  return NextResponse.json({ status: res.status, body: text });
 }

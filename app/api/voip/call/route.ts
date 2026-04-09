@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { getAuthUser } from '@/lib/auth-server';
 
 function normalizePhoneNumber(phone: string) {
   return phone.replace(/[^\d+]/g, '').trim();
 }
 
-function isValidPhoneNumber(phone: string) {
+// Must be E.164 format: optional +, 8–15 digits, no premium-rate or special prefixes
+function isValidPhoneNumber(phone: string): boolean {
   const normalized = normalizePhoneNumber(phone);
-  return normalized.length >= 8;
+  return /^\+?[1-9]\d{7,14}$/.test(normalized);
 }
 
 function buildZadarmaAuth(
   methodPath: string,
   params: Record<string, string>,
   key: string,
-  secret: string
+  secret: string,
 ) {
   const sortedParams = Object.keys(params)
     .sort()
@@ -40,22 +42,21 @@ function buildZadarmaAuth(
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getAuthUser(req);
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const phoneNumber = normalizePhoneNumber(body?.phoneNumber || '');
 
     if (!phoneNumber) {
-      return NextResponse.json(
-        { success: false, error: 'Phone number is required.' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'Phone number is required.' }, { status: 400 });
     }
 
     if (!isValidPhoneNumber(phoneNumber)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid phone number.' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'Invalid phone number.' }, { status: 400 });
     }
 
     const zadarmaKey = process.env.ZADARMA_KEY?.trim();
@@ -64,23 +65,11 @@ export async function POST(req: NextRequest) {
     const zadarmaCallerId = process.env.ZADARMA_CALLER_ID?.trim() || '';
 
     if (!zadarmaKey || !zadarmaSecret) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Zadarma environment variables are missing.',
-        },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: 'Zadarma environment variables are missing.' }, { status: 500 });
     }
 
     if (!zadarmaSip) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'ZADARMA_SIP is missing in env',
-        },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: 'ZADARMA_SIP is missing in env' }, { status: 500 });
     }
 
     const methodPath = '/v1/request/callback/';
@@ -93,39 +82,18 @@ export async function POST(req: NextRequest) {
       params.caller_id = zadarmaCallerId;
     }
 
-    const { queryString, authorization } = buildZadarmaAuth(
-      methodPath,
-      params,
-      zadarmaKey,
-      zadarmaSecret
-    );
+    const { queryString, authorization } = buildZadarmaAuth(methodPath, params, zadarmaKey, zadarmaSecret);
 
-          console.log('ZADARMA DEBUG', {
-        env: process.env.NODE_ENV,
-        keySuffix: zadarmaKey ? zadarmaKey.slice(-6) : null,
-        secretLength: zadarmaSecret ? zadarmaSecret.length : 0,
-        sip: zadarmaSip,
-        callerId: zadarmaCallerId || null,
-        phoneNumber,
-        methodPath,
-        queryString,
-        authorizationPrefix: authorization.slice(0, 12),
-      });
-
-    const response = await fetch(
-      `https://api.zadarma.com${methodPath}?${queryString}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: authorization,
-          Accept: 'application/json',
-        },
-        cache: 'no-store',
-      }
-    );
+    const response = await fetch(`https://api.zadarma.com${methodPath}?${queryString}`, {
+      method: 'GET',
+      headers: {
+        Authorization: authorization,
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    });
 
     const rawText = await response.text();
-    console.log('ZADARMA RAW RESPONSE', rawText);
 
     let parsedResponse: unknown = null;
     try {
@@ -135,15 +103,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!response.ok) {
-      console.error('ZADARMA ERROR:', parsedResponse);
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: parsedResponse,
-        },
-        { status: 502 }
-      );
+      return NextResponse.json({ success: false, error: 'Call provider error' }, { status: 502 });
     }
 
     return NextResponse.json({
@@ -152,14 +112,10 @@ export async function POST(req: NextRequest) {
       providerResponse: parsedResponse,
     });
   } catch (error) {
-    console.error('ZADARMA CALL ROUTE ERROR:', error);
-
+    console.error('ZADARMA CALL ROUTE ERROR:', error instanceof Error ? error.message : 'Unknown');
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Unexpected server error while sending Zadarma call request.',
-      },
-      { status: 500 }
+      { success: false, error: 'Unexpected server error while sending call request.' },
+      { status: 500 },
     );
   }
 }
