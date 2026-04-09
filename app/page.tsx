@@ -177,14 +177,17 @@ const tasks = useMemo<Task[]>(() => {
     };
   }, [router]);
 
-  // Data loading waits until auth is confirmed to prevent unauthenticated fetches
   useEffect(() => {
-    if (!authChecked) return;
     loadClients();
-    loadRecentCalls();
-    loadCalendarEvents();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked]);
+  }, []);
+
+  useEffect(() => {
+  loadRecentCalls();
+}, []);
+
+  useEffect(() => {
+  loadCalendarEvents();
+}, []);
 
   useEffect(() => {
     const storedLanguage = getStoredLanguage();
@@ -198,15 +201,6 @@ const tasks = useMemo<Task[]>(() => {
   }, [selectedClientId]);
 
 
-
-  async function getAuthHeaders(): Promise<Record<string, string>> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return { 'Content-Type': 'application/json' };
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
-    };
-  }
 
   async function getCurrentBroker() {
   const {
@@ -251,7 +245,7 @@ function normalizePhone(phone: string) {
 
       const response = await fetch('/api/voip/call', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber: normalizePhone(manualCallPhone.trim()) }),
       });
 
@@ -293,18 +287,10 @@ function normalizePhone(phone: string) {
   async function loadClients() {
     setClientsLoading(true);
 
-    const broker = await getCurrentBroker();
-
-    let clientsQuery = supabase
+    const { data, error } = await supabase
       .from('clients')
       .select('*')
       .order('created_at', { ascending: false });
-
-    if (broker?.id) {
-      clientsQuery = clientsQuery.eq('broker_id', broker.id);
-    }
-
-    const { data, error } = await clientsQuery;
 
     if (error) {
       console.error('Error loading clients:', error);
@@ -480,6 +466,9 @@ async function logCall(clientId: string) {
     .insert(payload)
     .select();
 
+  console.log('CALL LOG DATA:', data);
+  console.log('CALL LOG ERROR:', error);
+
   if (error) {
     alert(`Error logging call: ${error.message || 'Unknown error'}`);
     return;
@@ -554,7 +543,7 @@ async function logCall(clientId: string) {
 
       const response = await fetch('/api/assistant', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: assistantInput.trim() }),
       });
 
@@ -839,7 +828,9 @@ async function toggleTaskDone(id: number, currentDone: boolean) {
 
           const response = await fetch('/api/voip/call', {
             method: 'POST',
-            headers: await getAuthHeaders(),
+            headers: {
+              'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
               phoneNumber: normalizePhone(selectedClient.phone),
             }),
