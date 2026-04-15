@@ -28,6 +28,22 @@ function buildZadarmaAuth(method: string, params: Record<string, string>) {
   };
 }
 
+function normalizePhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  
+  let normalized = phone.replace(/\s+/g, '').replace(/-/g, '');
+  
+  if (normalized.startsWith('0')) {
+    normalized = '+359' + normalized.slice(1);
+  }
+  
+  if (normalized.startsWith('359') && !normalized.startsWith('+')) {
+    normalized = '+' + normalized;
+  }
+  
+  return normalized;
+}
+
 // GET (verification)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -115,16 +131,26 @@ const toNumber =
 if (fromNumber) updateData.from_number = fromNumber;
 if (toNumber) updateData.to_number = toNumber;
 
-if (toNumber) {
-  const { data: broker } = await supabaseAdmin
+
+
+const brokerNumber = normalizePhone(payload.internal);
+
+// Игнорирай вътрешни номера (по-малко от 5 цифри)
+if (brokerNumber && payload.internal?.length > 4) {
+  const { data: brokers } = await supabaseAdmin
     .from('brokers')
-    .select('id, agency_id')
-    .eq('zadarma_number', toNumber)
-    .maybeSingle();
+    .select('id, agency_id, zadarma_number');
+
+  const broker = brokers?.find(
+    b => normalizePhone(b.zadarma_number) === brokerNumber
+  );
 
   if (broker) {
     updateData.broker_id = broker.id;
     updateData.agency_id = broker.agency_id;
+    console.log('✅ Broker found:', broker.id);
+  } else {
+    console.log('⚠️ No broker found for number:', brokerNumber);
   }
 }
 
