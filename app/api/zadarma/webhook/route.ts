@@ -256,7 +256,23 @@ console.log('📞 Parsed numbers:', {
         }
       }
 
-            const { data: upsertedCall, error: callsError } = await supabaseAdmin
+      if (!updateData.broker_id) {
+  const { data: existingCall } = await supabaseAdmin
+    .from('calls')
+    .select('broker_id, agency_id')
+    .eq('external_call_id', externalCallId)
+    .maybeSingle();
+
+  if (existingCall?.broker_id) {
+    updateData.broker_id = existingCall.broker_id;
+    updateData.agency_id = existingCall.agency_id;
+    console.log('✅ Inherited broker_id/agency_id from existing call');
+  }
+}
+
+
+
+      const { data: upsertedCall, error: callsError } = await supabaseAdmin
         .from('calls')
         .upsert(updateData, {
           onConflict: 'external_call_id',
