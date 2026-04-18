@@ -378,7 +378,7 @@ footer p { font-size: 13px; color: var(--muted2); }
 async function submitWaitlist(inputId, successId) {
   const input = document.getElementById(inputId);
   const email = input.value.trim();
-  
+
   if (!email || !email.includes('@')) {
     input.style.borderColor = 'rgba(255,100,100,0.5)';
     input.placeholder = 'Въведи валиден имейл';
@@ -386,25 +386,18 @@ async function submitWaitlist(inputId, successId) {
     return;
   }
 
-  try {
-    const res = await fetch('https://ТВОЯ_SUPABASE_URL/rest/v1/waitlist', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': 'ТВОЯ_ANON_KEY',
-        'Authorization': 'Bearer ТВОЯ_ANON_KEY',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({ email })
-    });
+  const res = await fetch('/api/waitlist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  });
 
-    if (res.ok || res.status === 409) { // 409 = вече записан
-      input.closest('.waitlist-form, .final-form').style.display = 'none';
-      document.getElementById(successId).style.display = 'block';
-    } else {
-      alert('Грешка при записване. Опитай пак.');
-    }
-  } catch(e) {
+  const data = await res.json();
+
+  if (data.success) {
+    input.closest('.waitlist-form, .final-form').style.display = 'none';
+    document.getElementById(successId).style.display = 'block';
+  } else {
     alert('Грешка при записване. Опитай пак.');
   }
 }
