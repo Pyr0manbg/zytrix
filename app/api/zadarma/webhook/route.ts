@@ -135,20 +135,26 @@ if (toNumber) updateData.to_number = toNumber;
 
 const brokerNumber = normalizePhone(payload.internal);
 
-// Игнорирай вътрешни номера (по-малко от 5 цифри)
+console.log('🔍 RAW internal:', payload.internal);
+console.log('🔍 Normalized brokerNumber:', brokerNumber);
+
 if (brokerNumber && payload.internal?.length > 4) {
   const { data: brokers } = await supabaseAdmin
     .from('brokers')
     .select('id, agency_id, zadarma_number');
 
+  console.log('🔍 All brokers from DB:', JSON.stringify(brokers));
+
   const broker = brokers?.find(
     b => normalizePhone(b.zadarma_number) === brokerNumber
   );
 
+  console.log('🔍 Matched broker:', JSON.stringify(broker));
+
   if (broker) {
     updateData.broker_id = broker.id;
     updateData.agency_id = broker.agency_id;
-    console.log('✅ Broker found:', broker.id);
+    console.log('✅ Broker found:', broker.id, 'agency_id:', broker.agency_id);
   } else {
     console.log('⚠️ No broker found for number:', brokerNumber);
   }
