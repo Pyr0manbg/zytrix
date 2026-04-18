@@ -375,24 +375,39 @@ footer p { font-size: 13px; color: var(--muted2); }
 </footer>
 
 <script>
-function submitWaitlist(inputId, successId) {
+async function submitWaitlist(inputId, successId) {
   const input = document.getElementById(inputId);
   const email = input.value.trim();
+  
   if (!email || !email.includes('@')) {
     input.style.borderColor = 'rgba(255,100,100,0.5)';
     input.placeholder = 'Въведи валиден имейл';
     setTimeout(() => { input.style.borderColor = ''; input.placeholder = 'твоя@имейл.com'; }, 2000);
     return;
   }
-  input.closest('.waitlist-form, .final-form').style.display = 'none';
-  document.getElementById(successId).style.display = 'block';
-  try {
-    const list = JSON.parse(localStorage.getItem('zytrix_waitlist') || '[]');
-    list.push({ email, date: new Date().toISOString() });
-    localStorage.setItem('zytrix_waitlist', JSON.stringify(list));
-  } catch(e) {}
-}
 
+  try {
+    const res = await fetch('https://ТВОЯ_SUPABASE_URL/rest/v1/waitlist', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': 'ТВОЯ_ANON_KEY',
+        'Authorization': 'Bearer ТВОЯ_ANON_KEY',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ email })
+    });
+
+    if (res.ok || res.status === 409) { // 409 = вече записан
+      input.closest('.waitlist-form, .final-form').style.display = 'none';
+      document.getElementById(successId).style.display = 'block';
+    } else {
+      alert('Грешка при записване. Опитай пак.');
+    }
+  } catch(e) {
+    alert('Грешка при записване. Опитай пак.');
+  }
+}
 const obs = new IntersectionObserver((entries) => {
   entries.forEach((e, i) => {
     if (e.isIntersecting) {
